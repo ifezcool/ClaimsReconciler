@@ -291,6 +291,7 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
     sender_email = os.getenv("GMAIL_SENDER_EMAIL")
     sender_password = os.getenv("GMAIL_APP_PASSWORD")
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
+    cc_email = "adedamola.ayeni@avonhealthcare.com"
     
     # Check if credentials are available
     if not sender_email or not sender_password:
@@ -303,6 +304,7 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         msg = MIMEMultipart()
         msg['From'] = sender_email
         msg['To'] = recipient_email
+        msg['Cc'] = cc_email
         msg['Subject'] = f"Claims Reconciliation Alert - {variance_type.replace('_', ' ').title()}"
 
         # Create email body based on variance type
@@ -399,9 +401,11 @@ Avon Healthcare Ltd.
         server.starttls()  # Enable security
         server.login(sender_email, sender_password)
 
+        allrecipients = [recipient_email, cc_email]
+
         # Send email
         text = msg.as_string()
-        server.sendmail(sender_email, recipient_email, text)
+        server.sendmail(sender_email, allrecipients, text)
         server.quit()
 
         print(f"📧 Email sent successfully for {variance_type}")
