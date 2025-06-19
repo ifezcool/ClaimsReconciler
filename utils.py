@@ -146,7 +146,7 @@ def generate_enhanced_claims_excel(claims_df, schedule_col, amount_col):
 
     # Add all the additional columns in the correct order
     additional_columns = [
-        'Name_Date', 'Enrollee_Date', 'ReviewedDate', 'PostedDate', 'PaidDate',
+        'ReviewedDate', 'PostedDate', 'PaidDate',
         'ClaimBatch', 'ClaimNoFnx', 'ClaimNo', 'Correct_ClaimNo',
         'Benefits', 'ProviderClass', 'OpdIpd'
     ]
