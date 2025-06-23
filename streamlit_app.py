@@ -43,6 +43,17 @@ if 'finance_amount_col' not in st.session_state:
 if 'generate_claims_excel' not in st.session_state:
     st.session_state.generate_claims_excel = False
 
+# Page navigation
+page = st.sidebar.selectbox(
+    "Select Page",
+    ["Claims Reconciliation", "Appeals Compilation"]
+)
+
+if page == "Appeals Compilation":
+    from appeals_page import show_appeals_page
+    show_appeals_page()
+    st.stop()
+
 st.title("Claims Reconciliation Tool")
 st.markdown("""
 This application automates the reconciliation process between Claims and Finance department reports.
