@@ -280,7 +280,10 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
                 "adedamola.ayeni@avonhealthcare.com",
-                "adebola.adesoyin@avonhealthcare.com"
+                "adebola.adesoyin@avonhealthcare.com",
+                "financedepartment@avonhealthcare.com",
+                "claims.vetters@avonhealthcare.com",
+                "bi_dataanalytics@avonhealthcare.com"
                 ]
     password = os.getenv("GMAIL_APP_PASSWORD")
     
