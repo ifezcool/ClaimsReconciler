@@ -293,9 +293,10 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
                 "adedamola.ayeni@avonhealthcare.com",
-                "adebola.adesoyin@avonhealthcare.com"
-                
-                
+                "adebola.adesoyin@avonhealthcare.com",
+                "financedepartment@avonhealthcare.com",
+                "claims.vetters@avonhealthcare.com",
+                "bi_dataanalytics@avonhealthcare.com"
                 ]
     
     # Check if credentials are available
