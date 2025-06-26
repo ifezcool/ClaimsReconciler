@@ -72,21 +72,64 @@ def compile_appeals_files(uploaded_files):
                     else:
                         df_clean = df.copy()  # Fallback to keep all data if filtering fails
                     
-                    # Convert columns to proper types to avoid Arrow serialization issues
-                    # Keep numeric columns as integers where appropriate, others as strings
-                    for col in df_clean.columns:
-                        # For columns that should be integers (like S/N, Provider Code), convert properly
-                        if col in ['S/N', 'PROVIDER CODE'] or 'CODE' in str(col).upper():
-                            # Convert to int first to remove decimals, then to string to preserve exact format
-                            df_clean[col] = df_clean[col].apply(lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '').isdigit() else str(x) if pd.notna(x) else '')
+                    # Create the standardized structure with your specified columns
+                    template_columns = [
+                        'S_N', 'CLAIM_TYPE', 'BATCH_NUMBER', 'HOSPITAL', 'NUMBER_OF_CLAIMS',
+                        'ENCOUNTER_MONTH', 'DATE_OF_RECEIPT', 'APPROVED_PA_VALUE_N',
+                        'AMOUNT_RECOMMENDED_FOR_PAYMENT_N', 'VARIANCE', 'VARIANCE1',
+                        'NARRATION', 'Source_File', 'PROVIDER_CODE', 'Paiddate',
+                        'SCH_NO', 'APPEAL_NO', 'SCH_NUM'
+                    ]
+                    
+                    # Columns that should be left blank (for later manual completion)
+                    blank_columns = ['PROVIDER_CODE', 'Paiddate', 'SCH_NO', 'APPEAL_NO', 'SCH_NUM']
+                    
+                    # Create standardized dataframe with same number of rows as original
+                    data_dict = {}
+                    for col in template_columns:
+                        if col in blank_columns:
+                            data_dict[col] = [''] * len(df_clean)  # Leave these blank
                         else:
-                            # For other columns, just convert to string
-                            df_clean[col] = df_clean[col].astype(str)
+                            data_dict[col] = [''] * len(df_clean)  # Initialize, will be filled
                     
-                    # Add source file information
-                    df_clean['Source_File'] = uploaded_file.name
+                    standardized_df = pd.DataFrame(data_dict)
                     
-                    compiled_data.append(df_clean)
+                    # Comprehensive mapping from original columns to standardized structure
+                    column_mapping = {
+                        'S/N': 'S_N',
+                        'AMOUNT RECOMMENDED FOR PAYMENT (N)': 'AMOUNT_RECOMMENDED_FOR_PAYMENT_N',
+                        'ENROLLEE NAME': 'HOSPITAL',
+                        'PROVIDER NAME': 'HOSPITAL',
+                        'HOSPITAL NAME': 'HOSPITAL',
+                        'CLAIM TYPE': 'CLAIM_TYPE',
+                        'BATCH NUMBER': 'BATCH_NUMBER',
+                        'BATCH NO': 'BATCH_NUMBER',
+                        'NUMBER OF CLAIMS': 'NUMBER_OF_CLAIMS',
+                        'NO OF CLAIMS': 'NUMBER_OF_CLAIMS',
+                        'ENCOUNTER MONTH': 'ENCOUNTER_MONTH',
+                        'DATE OF RECEIPT': 'DATE_OF_RECEIPT',
+                        'APPROVED PA VALUE (N)': 'APPROVED_PA_VALUE_N',
+                        'VARIANCE': 'VARIANCE',
+                        'VARIANCE1': 'VARIANCE1',
+                        'NARRATION': 'NARRATION',
+                        'NARRATIVE': 'NARRATION'
+                    }
+                    
+                    # Copy data from original columns where they exist (except blank columns)
+                    for original_col, new_col in column_mapping.items():
+                        if original_col in df_clean.columns and new_col not in blank_columns:
+                            # Handle numeric columns properly
+                            if new_col in ['S_N']:
+                                standardized_df[new_col] = df_clean[original_col].apply(
+                                    lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '').isdigit() else str(x) if pd.notna(x) else ''
+                                )
+                            else:
+                                standardized_df[new_col] = df_clean[original_col].astype(str)
+                    
+                    # Add source file information (not blank)
+                    standardized_df['Source_File'] = uploaded_file.name
+                    
+                    compiled_data.append(standardized_df)
                     file_summary.append({
                         'File': uploaded_file.name,
                         'Rows': len(df_clean),
@@ -197,7 +240,7 @@ def compare_with_finance(compiled_data, finance_file):
         for _, row in appeals_combined.iterrows():
             filename = row.get('Source_File', '')
             schedule_num = extract_schedule_from_filename(filename)
-            amount_col = 'AMOUNT RECOMMENDED FOR PAYMENT (N)'
+            amount_col = 'AMOUNT_RECOMMENDED_FOR_PAYMENT_N'
             
             if schedule_num and amount_col in row:
                 try:
