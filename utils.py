@@ -375,16 +375,26 @@ DATE VALIDATION ERROR ALERT: The following Schedule Numbers (SCH NO) have ENCOUN
 
 Date Validation Errors:
 """
+            # Count occurrences of each unique error
+            error_counts = {}
             for error in date_errors:
+                error_key = (error['schedule'], error['encounter_date'], error['claim_received_date'])
+                if error_key in error_counts:
+                    error_counts[error_key] += 1
+                else:
+                    error_counts[error_key] = 1
+            
+            for (schedule, encounter_date, claim_received_date), count in error_counts.items():
                 body += f"""
-- SCH NO: {error['schedule']}
-  Encounter Date: {error['encounter_date']}
-  Date Claim Received: {error['claim_received_date']}
+- SCH NO: {schedule}
+  Encounter Date: {encounter_date}
+  Date Claim Received: {claim_received_date}
   Issue: Encounter date cannot be after the claim was received
+  Number of Records: {count}
 """
 
             body += f"""
-Total Schedules with Date Validation Errors: {len(date_errors)}
+
 
 Please review these data entry errors and correct the dates. The encounter date should not be after the date the claim was received.
 
