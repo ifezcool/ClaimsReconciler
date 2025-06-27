@@ -337,7 +337,7 @@ Avon Healthcare Ltd.
 
         elif variance_type == "amount_variances" and amount_variances:
             body = f"""
-Dear Ifeoluwa,
+Dear Claims Dept,
 
 This is an automated notification from the Claims Reconciliation System.
 
@@ -356,7 +356,7 @@ Amount Variances:
             body += f"""
 Total Schedules with Amount Variances: {len(amount_variances)}
 
-Please review these discrepancies and ensure the amounts are properly reconciled.
+Please review these discrepancies and ensure the amounts are properly reconciled.Edit the live sheet on the sharepoint.
 
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -396,7 +396,7 @@ Date Validation Errors:
             body += f"""
 
 
-Please review these data entry errors and correct the dates. The encounter date should not be after the date the claim was received.
+Please review these data entry errors and edit the live sheet on the sharepoint to correct the dates. The encounter date should not be after the date the claim was received.
 
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
