@@ -294,11 +294,10 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
                 "adedamola.ayeni@avonhealthcare.com",
                 "adebola.adesoyin@avonhealthcare.com",
-                "financedepartment@avonhealthcare.com",
-                "claims.vetters@avonhealthcare.com",
+                "claims_officers@avonhealthcare.com",
                 "bi_dataanalytics@avonhealthcare.com"
                 ]
-    
+    #financedepartment@avonhealthcare.com
     # Check if credentials are available
     if not sender_email or not sender_password:
         print("❌ Gmail credentials not found in environment variables")
