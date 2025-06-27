@@ -286,16 +286,14 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         amount_variances (list): List of dictionaries with variance details
     """
     # Email configuration
-    smtp_server = "smtp.gmail.com"
+    smtp_server = "smtp.office365.com"
     smtp_port = 587
-    sender_email = os.getenv("GMAIL_SENDER_EMAIL")
-    sender_password = os.getenv("GMAIL_APP_PASSWORD")
+    sender_email = os.getenv("OFFICE_SENDER_EMAIL")
+    sender_password = os.getenv("OUTLOOK_APP_PASSWORD")
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
                 "adedamola.ayeni@avonhealthcare.com",
-                "adebola.adesoyin@avonhealthcare.com",
-                "claims_officers@avonhealthcare.com",
-                "bi_dataanalytics@avonhealthcare.com"
+                "adebola.adesoyin@avonhealthcare.com"
                 ]
     #financedepartment@avonhealthcare.com
     # Check if credentials are available
@@ -315,7 +313,7 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         # Create email body based on variance type
         if variance_type == "missing_schedules" and missing_schedules:
             body = f"""
-Dear Ifeoluwa,
+Dear Finance,
 
 This is an automated notification from the Claims Reconciliation System.
 
@@ -337,7 +335,7 @@ Avon Healthcare Ltd.
 
         elif variance_type == "amount_variances" and amount_variances:
             body = f"""
-Dear Claims Dept,
+Dear Claims/Finance Dept,
 
 This is an automated notification from the Claims Reconciliation System.
 
@@ -367,7 +365,7 @@ Avon Healthcare Ltd.
 
         elif variance_type == "date_validation_errors" and date_errors:
             body = f"""
-Dear Ifeoluwa,
+Dear Claims,
 
 This is an automated notification from the Claims Reconciliation System.
 
