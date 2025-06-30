@@ -325,7 +325,7 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
                 "adedamola.ayeni@avonhealthcare.com",
                 "adebola.adesoyin@avonhealthcare.com",
                 "financedepartment@avonhealthcare.com",
-                "claims.vetters@avonhealthcare.com",
+                "claims_officers@avonhealthcare.com",
                 "bi_dataanalytics@avonhealthcare.com"
                 ]
     password = os.getenv("OUTLOOK_APP_PASSWORD")
