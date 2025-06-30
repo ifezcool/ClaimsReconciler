@@ -319,7 +319,7 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
         missing_schedules (DataFrame): Schedules in appeals but not in finance
         amount_mismatches (DataFrame): Schedules with amount differences
     """
-    sender_email = os.getenv("GMAIL_SENDER_EMAIL")
+    sender_email = os.getenv("OFFICE_SENDER_EMAIL")
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
                 "adedamola.ayeni@avonhealthcare.com",
@@ -328,7 +328,7 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
                 "claims.vetters@avonhealthcare.com",
                 "bi_dataanalytics@avonhealthcare.com"
                 ]
-    password = os.getenv("GMAIL_APP_PASSWORD")
+    password = os.getenv("OUTLOOK_APP_PASSWORD")
     
     if not sender_email or not password:
         st.error("Gmail credentials not configured. Please check GMAIL_SENDER_EMAIL and GMAIL_APP_PASSWORD secrets.")
@@ -427,7 +427,7 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
     
     try:
         # Create SMTP session using Gmail
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP("smtp.office365.com", 587)
         server.starttls()
         server.login(sender_email, password)
         allrecipients = [recipient_email] + cc_email
