@@ -331,7 +331,7 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
     password = os.getenv("OUTLOOK_APP_PASSWORD")
     
     if not sender_email or not password:
-        st.error("Gmail credentials not configured. Please check GMAIL_SENDER_EMAIL and GMAIL_APP_PASSWORD secrets.")
+        st.error("Gmail credentials not configured. Please check OFFICE_SENDER_EMAIL and OUTLOOK_APP_PASSWORD secrets.")
         return False
     
     # Create message
