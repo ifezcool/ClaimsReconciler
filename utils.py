@@ -295,7 +295,8 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
                 "adedamola.ayeni@avonhealthcare.com",
                 "adebola.adesoyin@avonhealthcare.com",
                 "claims_officers@avonhealthcare.com",
-                "bi_dataanalytics@avonhealthcare.com"
+                "bi_dataanalytics@avonhealthcare.com",
+                "financedepartment@avonhealthcare.com"
                 ]
     #financedepartment@avonhealthcare.com
     # Check if credentials are available
@@ -309,7 +310,13 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         msg = MIMEMultipart()
         msg['From'] = sender_email
         msg['To'] = recipient_email
-        msg['Cc'] = ", ".join(cc_email)
+        #Choose the correct CC list depending on variance/error type
+        if variance_type == "date_validation_errors":
+            cc_list = ["claims_officers@avonhealthcare.com",
+                       "bi_dataanalytics@avonhealthcare.com"]
+        else:
+            cc_list = cc_email
+        msg['Cc'] = ", ".join(cc_list)
         msg['Subject'] = f"Claims Reconciliation Alert - {variance_type.replace('_', ' ').title()}"
 
         # Create email body based on variance type
@@ -416,7 +423,7 @@ Avon Healthcare Ltd.
         server.starttls()  # Enable security
         server.login(sender_email, sender_password)
 
-        allrecipients = [recipient_email] + cc_email
+        allrecipients = [recipient_email] + cc_list
 
         # Send email
         text = msg.as_string()
