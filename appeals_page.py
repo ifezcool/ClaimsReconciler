@@ -318,13 +318,12 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
     sender_email = os.getenv("OFFICE_SENDER_EMAIL")
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
-                "powerbiuser@avonhealthcare.com"]
-              #  "adedamola.ayeni@avonhealthcare.com",
-               # "adebola.adesoyin@avonhealthcare.com",
-                #"financedepartment@avonhealthcare.com",
-                #"claims_officers@avonhealthcare.com",
-                #"bi_dataanalytics@avonhealthcare.com"
-                #]
+                "adedamola.ayeni@avonhealthcare.com",
+                "adebola.adesoyin@avonhealthcare.com",
+                "financedepartment@avonhealthcare.com",
+                "claims_officers@avonhealthcare.com",
+                "bi_dataanalytics@avonhealthcare.com"
+                ]
     password = os.getenv("OUTLOOK_APP_PASSWORD")
     
     if not sender_email or not password:
