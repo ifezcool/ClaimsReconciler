@@ -447,8 +447,8 @@ if claims_file and finance_file:
                 # Display results
                 st.header("Reconciliation Results")
 
-                # Send emails only once per reconciliation (when Process Reconciliation is clicked)
-                if not st.session_state.get('emails_sent', False):
+                # Send emails only once per reconciliation (manually triggered)
+                if st.button("Send Notification Emails") and not st.session_state.get('emails_sent', False):
                     # Check for missing schedules and send email
                     if not missing_in_finance.empty:
                         try:

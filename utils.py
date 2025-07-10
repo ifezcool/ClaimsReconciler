@@ -291,13 +291,13 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
     sender_email = os.getenv("OFFICE_SENDER_EMAIL")
     sender_password = os.getenv("OUTLOOK_APP_PASSWORD")
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
-    cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
-                "adedamola.ayeni@avonhealthcare.com",
-                "adebola.adesoyin@avonhealthcare.com",
-                "claims_officers@avonhealthcare.com",
-                "bi_dataanalytics@avonhealthcare.com",
-                "financedepartment@avonhealthcare.com"
-                ]
+    cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com"]
+        #        "adedamola.ayeni@avonhealthcare.com",
+       #         "adebola.adesoyin@avonhealthcare.com",
+      #          "claims_officers@avonhealthcare.com",
+     #           "bi_dataanalytics@avonhealthcare.com",
+   #             "financedepartment@avonhealthcare.com"
+    #            ]
     #financedepartment@avonhealthcare.com
     # Check if credentials are available
     if not sender_email or not sender_password:
@@ -312,8 +312,8 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         msg['To'] = recipient_email
         #Choose the correct CC list depending on variance/error type
         if variance_type == "date_validation_errors":
-            cc_list = ["claims_officers@avonhealthcare.com",
-                       "bi_dataanalytics@avonhealthcare.com"]
+            cc_list = ["ifeoluwa.adeniyi@avonhealthcare.com"]#"claims_officers@avonhealthcare.com",
+                       #"bi_dataanalytics@avonhealthcare.com"]
         else:
             cc_list = cc_email
         msg['Cc'] = ", ".join(cc_list)

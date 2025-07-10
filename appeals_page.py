@@ -298,13 +298,6 @@ def compare_with_finance(compiled_data, finance_file):
         
         comparison_df = pd.DataFrame(comparison_results)
         
-        # Check for issues and send email notifications if needed
-        missing_schedules = comparison_df[comparison_df['Finance_Amount'] == 0]
-        amount_mismatches = comparison_df[(comparison_df['Finance_Amount'] != 0) & (comparison_df['Variance'] != 0)]
-        
-        if not missing_schedules.empty or not amount_mismatches.empty:
-            send_appeals_notification_email(missing_schedules, amount_mismatches)
-        
         return comparison_df
         
     except Exception as e:
@@ -318,16 +311,20 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
     Args:
         missing_schedules (DataFrame): Schedules in appeals but not in finance
         amount_mismatches (DataFrame): Schedules with amount differences
+        
+    Returns:
+        bool: True if email sent successfully, False otherwise
     """
     sender_email = os.getenv("OFFICE_SENDER_EMAIL")
     recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
     cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com",
-                "adedamola.ayeni@avonhealthcare.com",
-                "adebola.adesoyin@avonhealthcare.com",
-                "financedepartment@avonhealthcare.com",
-                "claims_officers@avonhealthcare.com",
-                "bi_dataanalytics@avonhealthcare.com"
-                ]
+                "powerbiuser@avonhealthcare.com"]
+              #  "adedamola.ayeni@avonhealthcare.com",
+               # "adebola.adesoyin@avonhealthcare.com",
+                #"financedepartment@avonhealthcare.com",
+                #"claims_officers@avonhealthcare.com",
+                #"bi_dataanalytics@avonhealthcare.com"
+                #]
     password = os.getenv("OUTLOOK_APP_PASSWORD")
     
     if not sender_email or not password:
@@ -433,13 +430,12 @@ def send_appeals_notification_email(missing_schedules, amount_mismatches):
         allrecipients = [recipient_email] + cc_email
 
         # Send email
-        #text = message.as_string()
-        server.sendmail(sender_email,allrecipients,message.as_string())
+        server.sendmail(sender_email, allrecipients, message.as_string())
         server.quit()
         st.success("Email notification sent successfully for discrepancies found!")
         return True
     except Exception as e:
-        st.warning(f"Could not send email notification: {str(e)}")
+        st.error(f"Could not send email notification: {str(e)}")
         return False
 
 def show_appeals_page():
@@ -515,6 +511,9 @@ def show_appeals_page():
                         
                         st.success(f"Successfully compiled {successful_files} files with {total_rows} total rows")
                         
+                        # Store compiled data in session state for later use
+                        st.session_state['compiled_data'] = compiled_data
+                        
                         # Generate download link for compiled appeals
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                         filename = f"compiled_appeals_{timestamp}.xlsx"
@@ -530,6 +529,9 @@ def show_appeals_page():
                                 
                                 if comparison_df is not None and not comparison_df.empty:
                                     st.success("Finance comparison completed successfully!")
+                                    
+                                    # Store comparison results in session state
+                                    st.session_state['comparison_df'] = comparison_df
                                     
                                     # Display comparison results
                                     st.dataframe(comparison_df, use_container_width=True)
@@ -555,6 +557,39 @@ def show_appeals_page():
                                     
                                     if matches == len(comparison_df):
                                         st.success("✅ All schedules match perfectly between appeals and finance!")
+                                    
+                                    # **NEW: Email notification section**
+                                    if missing_in_finance > 0 or (mismatches - missing_in_finance) > 0:
+                                        st.subheader("📧 Email Notification")
+                                        st.info("Discrepancies found! You can send an email notification to the relevant teams.")
+                                        
+                                        # Show what will be included in the email
+                                        with st.expander("📋 Email Preview"):
+                                            st.write("**Email will include:**")
+                                            if missing_in_finance > 0:
+                                                st.write(f"- {missing_in_finance} schedules missing in finance")
+                                            if (mismatches - missing_in_finance) > 0:
+                                                st.write(f"- {mismatches - missing_in_finance} amount discrepancies")
+                                            st.write("- Detailed tables with schedule numbers and amounts")
+                                            st.write("- Action items for the finance and claims teams")
+                                        
+                                        # Send Email Button
+                                        if st.button("📧 Send Email Notification", 
+                                                   type="secondary",
+                                                   help="Send email notification about the discrepancies found"):
+                                            with st.spinner("Sending email notification..."):
+                                                missing_schedules = comparison_df[comparison_df['Finance_Amount'] == 0]
+                                                amount_mismatches = comparison_df[(comparison_df['Finance_Amount'] != 0) & (comparison_df['Variance'] != 0)]
+                                                
+                                                email_sent = send_appeals_notification_email(missing_schedules, amount_mismatches)
+                                                
+                                                if email_sent:
+                                                    st.balloons()
+                                                    st.success("✅ Email notification sent successfully!")
+                                                else:
+                                                    st.error("❌ Failed to send email notification. Please check your email configuration.")
+                                    else:
+                                        st.success("✅ No discrepancies found - no email notification needed!")
                                     
                                     # Create comparison Excel file
                                     comparison_output = io.BytesIO()
@@ -584,5 +619,44 @@ def show_appeals_page():
                         st.error("Failed to create compiled Excel file")
                 else:
                     st.error("No valid data found in the uploaded files. Please check that your files contain PAYMENT SUMMARY sheets.")
+    
+    # **NEW: Manual email section for previously processed data**
+    if 'comparison_df' in st.session_state:
+        st.markdown("---")
+        st.subheader("📧 Manual Email Notification")
+        st.info("You have previously processed comparison data. You can send email notifications for discrepancies.")
+        
+        comparison_df = st.session_state['comparison_df']
+        missing_in_finance = len(comparison_df[comparison_df['Finance_Amount'] == 0])
+        amount_mismatches = len(comparison_df[(comparison_df['Finance_Amount'] != 0) & (comparison_df['Variance'] != 0)])
+        
+        if missing_in_finance > 0 or amount_mismatches > 0:
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.write(f"**Current Issues:**")
+                if missing_in_finance > 0:
+                    st.write(f"- {missing_in_finance} schedules missing in finance")
+                if amount_mismatches > 0:
+                    st.write(f"- {amount_mismatches} amount discrepancies")
+            
+            with col2:
+                if st.button("📧 Send Email for Current Issues", 
+                           type="secondary",
+                           help="Send email notification for the current comparison results"):
+                    with st.spinner("Sending email notification..."):
+                        missing_schedules = comparison_df[comparison_df['Finance_Amount'] == 0]
+                        amount_mismatches_df = comparison_df[(comparison_df['Finance_Amount'] != 0) & (comparison_df['Variance'] != 0)]
+                        
+                        email_sent = send_appeals_notification_email(missing_schedules, amount_mismatches_df)
+                        
+                        if email_sent:
+                            st.balloons()
+                            st.success("✅ Email notification sent successfully!")
+                        else:
+                            st.error("❌ Failed to send email notification. Please check your email configuration.")
+        else:
+            st.success("✅ No discrepancies found in current data - no email notification needed!")
+    
     else:
         st.info("Please upload one or more appeals Excel files to begin compilation.")
