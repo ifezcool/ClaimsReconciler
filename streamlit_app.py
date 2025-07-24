@@ -46,12 +46,16 @@ if 'generate_claims_excel' not in st.session_state:
 # Page navigation
 page = st.sidebar.selectbox(
     "Select Page",
-    ["Claims Reconciliation", "Appeals Compilation"]
+    ["Claims Reconciliation", "Appeals Compilation","DB_Upload"]
 )
 
 if page == "Appeals Compilation":
     from appeals_page import show_appeals_page
     show_appeals_page()
+    st.stop()
+elif page == "DB_Upload":
+    from DB_Upload import render_dbpage
+    render_dbpage()
     st.stop()
 
 st.title("Claims Reconciliation Tool")
