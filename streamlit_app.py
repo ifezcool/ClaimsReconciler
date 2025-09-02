@@ -46,7 +46,7 @@ if 'generate_claims_excel' not in st.session_state:
 # Page navigation
 page = st.sidebar.selectbox(
     "Select Page",
-    ["Claims Reconciliation", "Appeals Compilation","DB_Upload"]
+    ["Claims Reconciliation", "Appeals Compilation","DB_Upload","AppealsUpload"]
 )
 
 if page == "Appeals Compilation":
