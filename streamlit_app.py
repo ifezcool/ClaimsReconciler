@@ -57,6 +57,10 @@ elif page == "DB_Upload":
     from DB_Upload import render_dbpage
     render_dbpage()
     st.stop()
+elif page == "AppealsUpload":
+    from AppealsUpload import render_appeals_upload
+    render_appeals_upload()
+    st.stop()
 
 st.title("Claims Reconciliation Tool")
 st.markdown("""

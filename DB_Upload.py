@@ -185,8 +185,8 @@ def render_dbpage():
                     column_definitions.append(f'{col} VARCHAR(MAX)')
 
             create_table_query = f"""
-            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='testappealstbl' AND xtype='U')
-            CREATE TABLE testappealstbl (
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='claimstbl' AND xtype='U')
+            CREATE TABLE claimstbl (
                 {', '.join(column_definitions)}
             )
             """
@@ -233,7 +233,7 @@ def render_dbpage():
 
             # Prepare the INSERT statement
             insert_query = f"""
-            INSERT INTO testappealstbl ({', '.join(db_columns)}) 
+            INSERT INTO claimstbl ({', '.join(db_columns)}) 
             VALUES ({', '.join(['?'] * len(db_columns))})
             """
 
@@ -298,4 +298,4 @@ def render_dbpage():
             if 'conn' in locals():
                 conn.close()
                 st.write("Upload is complete, please copy the following command and run it on SSMS")
-                st.write("INSERT INTO [Claims Schedules Consolidated Mastersheet] SELECT * FROM testappealstbl")
+                st.write("INSERT INTO [Claims Schedules Consolidated Mastersheet] SELECT * FROM claimstbl")
