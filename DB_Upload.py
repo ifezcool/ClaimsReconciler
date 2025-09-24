@@ -27,7 +27,7 @@ load_dotenv('secrets.env')
 
 # Upload file
 def render_dbpage():
-    uploaded_appeals_file = st.file_uploader("Upload Claims file", type=["xlsx"])
+    uploaded_appeals_file = st.file_uploader("Upload Claims file(Please truncate claimstbl before performing any upload)", type=["xlsx"])
     if uploaded_appeals_file is not None:
         # Read with explicit handling of mixed data types
         from openpyxl import load_workbook
