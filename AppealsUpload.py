@@ -10,7 +10,7 @@ import io
 load_dotenv('secrets.env')
 
 def render_appeals_upload():
-    uploaded_file = st.file_uploader("Upload Appeals file", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload Appeals file(Please truncate appealstbl before uploading)", type=["xlsx"])
     if uploaded_file is not None:
         # Read Excel with formulas resolved
         excel_bytes = uploaded_file.read()
