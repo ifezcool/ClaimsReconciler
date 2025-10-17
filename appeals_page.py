@@ -82,7 +82,7 @@ def compile_appeals_files(uploaded_files):
                     ]
                     
                     # Columns that should be left blank (for later manual completion)
-                    blank_columns = ['PROVIDER_CODE', 'Paiddate', 'SCH_NO', 'APPEAL_NO', 'SCH_NUM']
+                    blank_columns = ['Paiddate', 'SCH_NO', 'APPEAL_NO', 'SCH_NUM']
                     
                     # Create standardized dataframe with same number of rows as original
                     data_dict = {}
