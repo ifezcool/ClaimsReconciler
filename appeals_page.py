@@ -101,6 +101,7 @@ def compile_appeals_files(uploaded_files):
                         'ENROLLEE NAME': 'HOSPITAL',
                         'PROVIDER NAME': 'HOSPITAL',
                         'HOSPITAL NAME': 'HOSPITAL',
+                        'PROVIDER CODE': 'PROVIDER_CODE',
                         'CLAIM TYPE': 'CLAIM_TYPE',
                         'BATCH NUMBER': 'BATCH_NUMBER',
                         'BATCH NO': 'BATCH_NUMBER',
