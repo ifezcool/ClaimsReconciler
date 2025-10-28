@@ -88,7 +88,7 @@ def render_dbpage():
                 'ENCOUNTER DATE (DD/MM/YYYY)': 'ENCOUNTER_DATE_DD_MM_YYYY',
                 'NO. OF UNITS': 'NO_OF_UNITS',
                 'AMOUNT CLAIMED': 'AMOUNT_CLAIMED',
-                'DATE CLAIM RECEIVED ': 'DATE_CLAIM_RECEIVED',  # Note the space
+                'DATE CLAIM RECEIVED': 'DATE_CLAIM_RECEIVED',  # Note the space
                 'AVONPACODE': 'AVONPACODE',
                 'CLAIMS INTERN': 'CLAIMS_INTERN',
                 'IS PA ATTACHED': 'IS_PA_ATTACHED',
