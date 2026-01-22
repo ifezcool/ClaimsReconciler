@@ -178,3 +178,4 @@ def send_notification_email(department):
     except Exception as e:
         print(f"Failed to send email: {str(e)}")
         return False
+    #testcheck
