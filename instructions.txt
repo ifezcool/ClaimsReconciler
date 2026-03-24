@@ -1,0 +1,39 @@
+Step 1: Create AmbulanceUpload.py
+Duplicate the entire contents of TelemedicineUpload.py into a new file called AmbulanceUpload.py. Then make these targeted replacements throughout the file:
+
+Every occurrence of telemedicinetbl → ambulancetbl
+Every occurrence of render_telemedicine_upload → render_ambulance_upload
+Every occurrence of "Upload Telemedicine file → "Upload Ambulance file
+Every occurrence of telemedicinetbl in the truncate instruction message → ambulancetbl
+The st.code(...) line at the bottom: change INSERT INTO Compiled_Telemedicine SELECT * FROM telemedicinetbl → INSERT INTO Compiled_Ambulance SELECT * FROM ambulancetbl
+
+
+Step 2: Create ambulance.py
+Duplicate the entire contents of telemedicine.py into a new file called ambulance.py. Then make these targeted replacements throughout the file:
+
+Every occurrence of telemedicine (lowercase) → ambulance
+Every occurrence of Telemedicine (title case) → Ambulance
+Every occurrence of TELEMEDICINE (uppercase) → AMBULANCE
+The function name compile_telemedicine_files → compile_ambulance_files
+The function name show_telemedicine_page → show_ambulance_page
+The function name send_telemedicine_notification_email → send_ambulance_notification_email
+The function name compare_with_finance can stay as-is since it's generic, but if it's defined locally in the file, rename it compare_ambulance_with_finance for clarity
+The st.file_uploader key "telemedicine_uploader" → "ambulance_uploader"
+The st.file_uploader key "finance_uploader_telemedicine" → "finance_uploader_ambulance"
+The session state key 'telemedicine_compiled_data' → 'ambulance_compiled_data'
+The session state key 'telemedicine_comparison_df' → 'ambulance_comparison_df'
+The email subject line: "Telemedicine Finance Comparison Alert..." → "Ambulance Finance Comparison Alert..."
+The compiled Excel sheet name 'Compiled Telemedicine' → 'Compiled Ambulance'
+The default download filename "compiled_telemedicine.xlsx" → "compiled_ambulance.xlsx"
+The timestamp filename prefix "compiled_telemedicine_" → "compiled_ambulance_"
+The comparison filename prefix "telemedicine_finance_comparison_" → "ambulance_finance_comparison_"
+
+
+Step 3: Register the new pages in streamlit_app.py
+Locate the page = st.sidebar.selectbox(...) call and add "Ambulance Compilation" and "Ambulance Upload" to the options list, alongside the existing telemedicine entries.
+Then in the if/elif chain that follows, add two new elif blocks immediately after the telemedicine ones:
+
+One block for "Ambulance Compilation": import show_ambulance_page from ambulance, call it, then st.stop()
+One block for "Ambulance Upload": import render_ambulance_upload from AmbulanceUpload, call it, then st.stop()
+
+The import and routing pattern should match exactly how "Telemedicine Compilation" and "Telemedicine Upload" are handled in the existing elif blocks.
