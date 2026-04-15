@@ -121,7 +121,7 @@ def compile_ambulance_files(uploaded_files):
                     for original_col, new_col in column_mapping.items():
                         if original_col in df_clean.columns and new_col not in blank_columns:
                             # Handle numeric columns properly
-                            if new_col in ['S_N']:
+                            if new_col in ['S_N', 'BATCH_NUMBER', 'PROVIDER_CODE']:
                                 standardized_df[new_col] = df_clean[original_col].apply(
                                     lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '').isdigit() else str(x) if pd.notna(x) else ''
                                 )

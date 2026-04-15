@@ -99,6 +99,11 @@ def render_telemedicine_upload():
                     return None
                 if col_name in date_columns:
                     return convert_date(val)
+                if col_name in ['BATCH_NUMBER', 'PROVIDER_CODE']:
+                    try:
+                        return str(int(float(val)))
+                    except:
+                        pass
                 return str(val).strip()
 
             # Insert
