@@ -1,39 +1,53 @@
-Step 1: Create AmbulanceUpload.py
-Duplicate the entire contents of TelemedicineUpload.py into a new file called AmbulanceUpload.py. Then make these targeted replacements throughout the file:
+# Claims Reconciliation App — Review & Fix Instructions
 
-Every occurrence of telemedicinetbl → ambulancetbl
-Every occurrence of render_telemedicine_upload → render_ambulance_upload
-Every occurrence of "Upload Telemedicine file → "Upload Ambulance file
-Every occurrence of telemedicinetbl in the truncate instruction message → ambulancetbl
-The st.code(...) line at the bottom: change INSERT INTO Compiled_Telemedicine SELECT * FROM telemedicinetbl → INSERT INTO Compiled_Ambulance SELECT * FROM ambulancetbl
+Context for the agent: this is a Streamlit app (`streamlit_app.py` as entry point) that reconciles claims data between a Claims department and a Finance department, compiles per-category submission files (Telemedicine, Ambulance, Appeals), and uploads cleaned data into SQL Server tables via pyodbc. Work through the items below in order — Critical first.
 
+## CRITICAL — bugs and security
 
-Step 2: Create ambulance.py
-Duplicate the entire contents of telemedicine.py into a new file called ambulance.py. Then make these targeted replacements throughout the file:
+1. **Email CC list bug in `utils.py`** (`send_variance_email`): the list literal is missing a comma —
+   `cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com"  "adedamola.ayeni@avonhealthcare.com", ...]`
+   Python silently concatenates the first two strings into one invalid address. Fix the missing comma and add a unit test or assertion that validates every entry in `cc_email`/`cc_list` looks like a valid email before sending.
 
-Every occurrence of telemedicine (lowercase) → ambulance
-Every occurrence of Telemedicine (title case) → Ambulance
-Every occurrence of TELEMEDICINE (uppercase) → AMBULANCE
-The function name compile_telemedicine_files → compile_ambulance_files
-The function name show_telemedicine_page → show_ambulance_page
-The function name send_telemedicine_notification_email → send_ambulance_notification_email
-The function name compare_with_finance can stay as-is since it's generic, but if it's defined locally in the file, rename it compare_ambulance_with_finance for clarity
-The st.file_uploader key "telemedicine_uploader" → "ambulance_uploader"
-The st.file_uploader key "finance_uploader_telemedicine" → "finance_uploader_ambulance"
-The session state key 'telemedicine_compiled_data' → 'ambulance_compiled_data'
-The session state key 'telemedicine_comparison_df' → 'ambulance_comparison_df'
-The email subject line: "Telemedicine Finance Comparison Alert..." → "Ambulance Finance Comparison Alert..."
-The compiled Excel sheet name 'Compiled Telemedicine' → 'Compiled Ambulance'
-The default download filename "compiled_telemedicine.xlsx" → "compiled_ambulance.xlsx"
-The timestamp filename prefix "compiled_telemedicine_" → "compiled_ambulance_"
-The comparison filename prefix "telemedicine_finance_comparison_" → "ambulance_finance_comparison_"
+3. **Row-insert loop aborts on first failure instead of skipping it.** In `AmbulanceUpload.py`, `AppealsUpload.py`, `TelemedicineUpload.py`, and `DB_Upload.py`, the per-row insert loop does:
+   ```python
+   except Exception as e:
+       st.error(f"Row {i+1} failed: {e}")
+       break
+   ```
+   `break` stops processing every subsequent row in the file, so one bad row silently discards the rest of the upload while reporting only partial success. Change to `continue`, accumulate a list of failed rows with their error messages, show that list at the end, and don't `commit()` until you've decided how to handle partial failures (see #4).
 
+4. **No transaction safety around bulk inserts.** All four upload scripts call `conn.commit()` once at the end regardless of how many rows failed. Wrap the insert batch in an explicit transaction; on a fatal error, roll back rather than partially committing. Consider switching to `cursor.executemany()` / `fast_executemany=True` (pyodbc) for both speed and to make the row-level error story explicit rather than emergent from a Python for-loop.
 
-Step 3: Register the new pages in streamlit_app.py
-Locate the page = st.sidebar.selectbox(...) call and add "Ambulance Compilation" and "Ambulance Upload" to the options list, alongside the existing telemedicine entries.
-Then in the if/elif chain that follows, add two new elif blocks immediately after the telemedicine ones:
+5. **Hardcoded recipient lists scattered across 5 files** (`ambulance.py`, `appeals_page.py`, `telemedicine.py`, `session_manager.py`, `utils.py`), each slightly different. Move all recipient/CC lists into `secrets.env` (or a config module) as a single source of truth, e.g. `NOTIFY_TO`, `NOTIFY_CC_CLAIMS`, `NOTIFY_CC_FINANCE`. This avoids the current risk of one list getting updated and the others drifting.
 
-One block for "Ambulance Compilation": import show_ambulance_page from ambulance, call it, then st.stop()
-One block for "Ambulance Upload": import render_ambulance_upload from AmbulanceUpload, call it, then st.stop()
+## HIGH — eliminate the duplicated modules
 
-The import and routing pattern should match exactly how "Telemedicine Compilation" and "Telemedicine Upload" are handled in the existing elif blocks.
+This is the most impactful change. Right now:
+- `AmbulanceUpload.py`, `AppealsUpload.py`, `TelemedicineUpload.py` (and most of `DB_Upload.py`) are the same script three/four times over, differing only in table name, a few labels, and the `column_mapping` dict.
+- `ambulance.py`, `appeals_page.py`, `telemedicine.py` are the same compilation/comparison/email-notification logic three times over.
+- `instructions.txt` literally documents a manual find-and-replace process for creating the next copy. That's a maintenance liability: every future bug fix (like #3 above) has to be applied N times by hand and will eventually drift.
+
+Refactor instructions:
+- Create `db_upload_common.py` exporting one function, e.g. `render_generic_upload(table_name, column_mapping, date_columns, numeric_columns, consolidate_target)`. Each of `AmbulanceUpload.py` etc. becomes a 3-line wrapper that calls it with that category's config.
+- Create `compilation_common.py` exporting `compile_files(...)`, `create_compiled_excel(...)`, `compare_with_finance(...)`, `send_notification_email(...)`, `extract_schedule_from_filename(...)`, `get_download_link(...)`, and `show_compilation_page(label, session_keys, ...)`, all parameterized by category name/label instead of hardcoded "telemedicine"/"ambulance"/"appeals" strings. `telemedicine.py`, `ambulance.py`, `appeals_page.py` become thin wrappers.
+- Once this exists, adding a new claim category (e.g. "Dental") should mean adding one config entry, not duplicating ~300 lines of code.
+
+## MEDIUM — data integrity & performance
+
+7. **All non-date DB columns are `VARCHAR(MAX)`**, including amount and count fields (`AMOUNT_RECOMMENDED_FOR_PAYMENT_N`, `APPROVED_PA_VALUE_N`, `PA_AMOUNT`, `AMOUNT_CLAIMED`, `NO_OF_UNITS`, etc.). This makes SQL-side aggregation, sorting, and BI reporting on these tables harder/slower and loses type safety. Use `DECIMAL(18,2)` for money fields and `INT` for counts; only keep free-text fields as `VARCHAR`.
+
+8. **The "consolidate" step is a manual SSMS copy-paste** (`st.code("INSERT INTO Compiled_X SELECT * FROM xtbl")` shown to the user after every upload). Automate this: after a successful upload (and ideally behind a confirmation checkbox), run the same `INSERT INTO ... SELECT * FROM ...` from the app itself.
+
+9. **No automatic truncate before upload** — the file uploader labels just say "please truncate before uploading," relying entirely on the user remembering. Add a checkbox ("I have truncated this table" / "Truncate now") that the app can act on directly, or have the app check `SELECT COUNT(*) FROM table` and warn if it's non-empty before inserting.
+
+10. **No schema validation before insert.** If an expected Excel column is missing, the code just inserts `None` for that field silently (only `DB_Upload.py` surfaces a warning via `missing_in_mapping`/`missing_in_excel`). Add the same up-front "expected vs. found columns" check to the other three upload scripts, and refuse to proceed (or require explicit override) if required columns are absent.
+
+## LOW — cleanup
+
+11. Replace the manual base64 `<a href="data:...">` download links (`get_download_link` in all three compilation files) with `st.download_button`, which is already used correctly elsewhere in `streamlit_app.py` and avoids `unsafe_allow_html=True`.
+12. Add basic logging (Python `logging` to file or a DB audit table) for who uploaded what and when — useful for a financial reconciliation tool and currently absent; only `print()` debug statements exist.
+13. Pin `requirements.txt` to exact versions you've tested (`==`) rather than `>=`, to avoid a future `pip install` silently picking up a breaking pandas/streamlit release.
+14. Add a handful of unit tests for the pure-logic helpers in `utils.py` (`extract_schedule_data`, `find_missing_schedules`, `calculate_schedule_amounts`, `generate_reconciliation_report`) and for the `clean_value`/date-parsing functions, since these drive financial figures and currently have zero test coverage.
+
+## Suggested order of work for the agent
+Critical items (1–6) first since they're either active bugs or open security holes. Then do the HIGH refactor (it will make items 7–10 much easier to apply once, instead of four times). Finish with LOW cleanup. I intentionally deleted some numbers on the list because i feel i will handle those myself, you might notice there is no number 2, that is fine.

@@ -5,6 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import datetime
+from config import get_to_email, logger
 
 # Directory to store session data
 SESSION_DIR = "sessions"
@@ -119,7 +120,7 @@ def send_notification_email(department):
         department (str): The department that uploaded the file
     """
     sender_email = os.getenv("POWERBI_SENDER_EMAIL")
-    recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
+    recipient_email = get_to_email()
     password = os.getenv("POWERBI_PASSWORD")
     
     # Check if credentials are available
