@@ -1,39 +1,117 @@
-Step 1: Create AmbulanceUpload.py
-Duplicate the entire contents of TelemedicineUpload.py into a new file called AmbulanceUpload.py. Then make these targeted replacements throughout the file:
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-Every occurrence of telemedicinetbl → ambulancetbl
-Every occurrence of render_telemedicine_upload → render_ambulance_upload
-Every occurrence of "Upload Telemedicine file → "Upload Ambulance file
-Every occurrence of telemedicinetbl in the truncate instruction message → ambulancetbl
-The st.code(...) line at the bottom: change INSERT INTO Compiled_Telemedicine SELECT * FROM telemedicinetbl → INSERT INTO Compiled_Ambulance SELECT * FROM ambulancetbl
+In `@compilation_common.py` at line 124, The conditional assignment to df_clean at
+line 124 incorrectly falls back to copying the entire dataframe when data_rows
+is empty, which causes malformed or totals-only sheets to be treated as valid
+claim detail data. Instead of using df.copy() as the fallback when data_rows is
+empty, create an empty dataframe or handle the absence of valid detail rows
+explicitly to prevent invalid data from being compiled.
 
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-Step 2: Create ambulance.py
-Duplicate the entire contents of telemedicine.py into a new file called ambulance.py. Then make these targeted replacements throughout the file:
+In `@compilation_common.py` around lines 131 - 138, The else branch uses
+astype(str) which converts missing values into the literal string "nan", causing
+problems in downstream finance comparisons and aggregation. Replace the
+astype(str) conversion with the same lambda-based approach used for the special
+columns (S_N, BATCH_NUMBER, PROVIDER_CODE) that checks pd.notna(x), converts
+non-missing values to strings, and returns empty strings for missing values to
+properly preserve NaN as missing rather than as a string literal.
 
-Every occurrence of telemedicine (lowercase) → ambulance
-Every occurrence of Telemedicine (title case) → Ambulance
-Every occurrence of TELEMEDICINE (uppercase) → AMBULANCE
-The function name compile_telemedicine_files → compile_ambulance_files
-The function name show_telemedicine_page → show_ambulance_page
-The function name send_telemedicine_notification_email → send_ambulance_notification_email
-The function name compare_with_finance can stay as-is since it's generic, but if it's defined locally in the file, rename it compare_ambulance_with_finance for clarity
-The st.file_uploader key "telemedicine_uploader" → "ambulance_uploader"
-The st.file_uploader key "finance_uploader_telemedicine" → "finance_uploader_ambulance"
-The session state key 'telemedicine_compiled_data' → 'ambulance_compiled_data'
-The session state key 'telemedicine_comparison_df' → 'ambulance_comparison_df'
-The email subject line: "Telemedicine Finance Comparison Alert..." → "Ambulance Finance Comparison Alert..."
-The compiled Excel sheet name 'Compiled Telemedicine' → 'Compiled Ambulance'
-The default download filename "compiled_telemedicine.xlsx" → "compiled_ambulance.xlsx"
-The timestamp filename prefix "compiled_telemedicine_" → "compiled_ambulance_"
-The comparison filename prefix "telemedicine_finance_comparison_" → "ambulance_finance_comparison_"
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
+In `@compilation_common.py` around lines 210 - 215, The code at lines 210-215 has
+two issues: the str.contains method with str(sch) over-matches partial schedule
+numbers (e.g., schedule 12 matches 112), and Claims_Advised_Amount may be
+formatted as strings from Excel causing sum to fail or produce incorrect
+results. Replace the str.contains substring matching with exact value matching
+by converting the Claim Batch No/Sch No column to numeric type and using
+equality comparison with sch, and convert Claims_Advised_Amount to numeric type
+using pandas pd.to_numeric with error handling before calling sum to ensure
+proper aggregation of amounts.
 
-Step 3: Register the new pages in streamlit_app.py
-Locate the page = st.sidebar.selectbox(...) call and add "Ambulance Compilation" and "Ambulance Upload" to the options list, alongside the existing telemedicine entries.
-Then in the if/elif chain that follows, add two new elif blocks immediately after the telemedicine ones:
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-One block for "Ambulance Compilation": import show_ambulance_page from ambulance, call it, then st.stop()
-One block for "Ambulance Upload": import render_ambulance_upload from AmbulanceUpload, call it, then st.stop()
+In `@compilation_common.py` around lines 242 - 256, The email notification code in
+the compilation_common.py section does not validate email addresses before using
+them with SMTP. The functions get_to_email() and get_cc_list() return
+configuration values that should be validated for proper email format to prevent
+SMTP failures. Reuse the recipient email validation logic that was added to
+utils.py and apply it to validate the recipient_email returned from
+get_to_email() and the addresses in cc_list returned from get_cc_list(). If
+validation fails for any address, log an appropriate error and return False
+before attempting to construct or send the email message.
 
-The import and routing pattern should match exactly how "Telemedicine Compilation" and "Telemedicine Upload" are handled in the existing elif blocks.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@compilation_common.py` around lines 276 - 287, The Schedule_Number and
+Source_Files values from uploaded data are being directly interpolated into HTML
+without escaping, which creates an HTML injection vulnerability. Import the
+html.escape function from Python's standard library at the top of the file, then
+apply html.escape() to all instances where Schedule_Number and Source_Files are
+inserted into the HTML strings (both in the missing_schedules section and in the
+amount_mismatches loop where you build the table rows with f-strings). This will
+safely encode any special HTML characters in these user-provided values.
+
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@config.py` around lines 29 - 36, The logging.basicConfig() call in config.py
+unconditionally creates a FileHandler that attempts to write to
+"claims_reconciler.log" during module import, which can crash the application if
+the working directory is not writable. Refactor the logging configuration to
+make the FileHandler optional and configurable, while ensuring the StreamHandler
+remains as a mandatory fallback. Consider using an environment variable or
+configuration flag to control whether file logging is enabled, and only add the
+FileHandler to the handlers list if that condition is met.
+
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@db_upload_common.py` around lines 22 - 32, The _convert_date function
+currently returns None when a date string doesn't match any supported format,
+causing invalid dates to be silently stored as NULL. Instead, raise a ValueError
+with a descriptive message after the format-matching loop completes without
+success (replacing the final return None statement). This will allow the
+existing row-failure reporting mechanism to catch and handle invalid date inputs
+properly.
+
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@db_upload_common.py` around lines 169 - 176, The current code commits
+successful rows to the database whenever success_count is greater than zero,
+even when failed_rows exist, leaving the table partially populated with
+incomplete data. To fix this, check whether the failed_rows collection is empty
+before deciding to commit or rollback. If failed_rows has any entries, call
+conn.rollback() to undo all changes in the batch and display an error message.
+Only call conn.commit() when failed_rows is empty, ensuring atomicity—either all
+rows are uploaded successfully or none are persisted to maintain data integrity.
+
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@db_upload_common.py` around lines 180 - 182, The cursor.execute call in the
+consolidate operation uses INSERT INTO target SELECT * which relies on ordinal
+column matching and can corrupt data if columns are reordered or differ between
+tables. Replace the SELECT * syntax with explicit column lists that map the
+source table columns to the target table columns. Determine the column mapping
+between table_name and consolidate_target, then modify the INSERT statement to
+explicitly list the target columns after INSERT INTO and the corresponding
+source columns in the SELECT clause to ensure correct data flow regardless of
+column ordering.
+
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@utils.py` around lines 306 - 323, The primary recipient email stored in
+recipient_email (from get_to_email()) is not being validated, while the CC list
+is validated using validate_email_list(). Add a call to validate_email_list()
+for recipient_email after it is retrieved from get_to_email() and before the
+message is created in MIMEMultipart(). Pass an appropriate context parameter
+like "send_variance_email/to" to identify this as validation for the primary
+recipient in the send_variance_email function.

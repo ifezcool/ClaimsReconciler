@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 import os
+import re
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
@@ -10,9 +11,21 @@ import io
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+from config import get_cc_list, get_to_email, logger
 
 load_dotenv('secrets.env')
+
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+def is_valid_email(email):
+    return bool(EMAIL_REGEX.match(email))
+
+def validate_email_list(email_list, context=""):
+    invalid = [e for e in email_list if not is_valid_email(e)]
+    if invalid:
+        logger.warning(f"Invalid email addresses in {context}: {invalid}")
+        raise ValueError(f"Invalid email addresses found: {invalid}")
+    return True
 
 
 def extract_schedule_data(df, schedule_col, amount_col):
@@ -290,19 +303,19 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
     smtp_port = 587
     sender_email = os.getenv("OFFICE_SENDER_EMAIL")
     sender_password = os.getenv("OUTLOOK_APP_PASSWORD")
-    recipient_email = "ifeoluwa.adeniyi@avonhealthcare.com"
-    cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com"
-                "adedamola.ayeni@avonhealthcare.com",
-                "adebola.adesoyin@avonhealthcare.com",
-                "claims_officers@avonhealthcare.com",
-                "bi_dataanalytics@avonhealthcare.com",
-                "financedepartment@avonhealthcare.com"
-                ]
-    #financedepartment@avonhealthcare.com
+    recipient_email = get_to_email()
+    cc_email = get_cc_list("default")
     # Check if credentials are available
     if not sender_email or not sender_password:
-        print("❌ Gmail credentials not found in environment variables")
-        print("Please set GMAIL_SENDER_EMAIL and GMAIL_APP_PASSWORD in Secrets")
+        logger.error("Office 365 credentials not found in environment variables")
+        print("Please set OFFICE_SENDER_EMAIL and OUTLOOK_APP_PASSWORD in secrets.env")
+        return
+
+    try:
+        validate_email_list([recipient_email], context=f"send_variance_email/{variance_type}/to")
+    except ValueError as e:
+        logger.error(f"Invalid recipient email: {e}")
+        print(f"Invalid recipient email: {e}")
         return
 
     try:
@@ -310,13 +323,11 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         msg = MIMEMultipart()
         msg['From'] = sender_email
         msg['To'] = recipient_email
-        #Choose the correct CC list depending on variance/error type
         if variance_type == "date_validation_errors":
-            cc_list = ["ifeoluwa.adeniyi@avonhealthcare.com",#"claims_officers@avonhealthcare.com",
-                       "claims_officers@avonhealthcare.com",
-                        "bi_dataanalytics@avonhealthcare.com"]
+            cc_list = get_cc_list("date_validation")
         else:
             cc_list = cc_email
+        validate_email_list(cc_list, context=f"send_variance_email/{variance_type}")
         msg['Cc'] = ", ".join(cc_list)
         msg['Subject'] = f"Claims Reconciliation Alert - {variance_type.replace('_', ' ').title()}"
 
