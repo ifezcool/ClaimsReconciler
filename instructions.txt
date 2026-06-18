@@ -1,10 +1,25 @@
 Verify each finding against current code. Fix only still-valid issues, skip the
 rest with a brief reason, keep changes minimal, and validate.
 
-File: DB_Upload.py
+In `@db_upload_common.py` around lines 55 - 58, The condition on line 56 that
+compares `val == int(val)` will raise OverflowError or ValueError when val is
+infinity or NaN, which can occur from Excel formulas. Add a guard using
+math.isfinite() to check if the float value is finite before attempting the int
+conversion. Update the condition from `if isinstance(val, float) and val ==
+int(val):` to also check `math.isfinite(val)` so that infinity and NaN values
+skip the integer conversion and are returned as their string representation
+instead. Remember to import the math module at the top of the file.
 
-1.Trailing-space mismatch (3 columns). df.columns = df.columns.str.strip() in db_upload_common.py strips whitespace off the Excel headers before comparison, but the COLUMN_MAPPING dict keys for these three columns still have a baked-in trailing space: 'BAL. UNIT LEFT AFTER THIS CLAIM ', 'IS ENROLLEE REGISTD. WITH THIS PROVIDER ', 'BAL. NAIRA LEFT AFTER THIS CLAIM '. Strip the trailing space off each of those three dict keys so they read 'BAL. UNIT LEFT AFTER THIS CLAIM', 'IS ENROLLEE REGISTD. WITH THIS PROVIDER', 'BAL. NAIRA LEFT AFTER THIS CLAIM'. Don't touch the values (the DB column names) — those are unaffected.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-2.Genuine rename: ReviewedDate → ReceivedDate. Your source template renamed this column. Change the dict key from 'ReviewedDate' to 'ReceivedDate'. Keep the value as 'ReviewedDate' (the existing DB column name) — no reason to touch the database schema for a cosmetic Excel header change.
-
-3.Genuine rename: CLAIMS OFFICER RECOMMD. AMT → AMOUNT PAID. Same situation. Change the dict key from 'CLAIMS OFFICER RECOMMD. AMT' to 'AMOUNT PAID', keep the value 'CLAIMS_OFFICER_RECOMMD_AMT' unchanged so the numeric_columns dict (which references that DB column name as 'DECIMAL(18,2)') still lines up correctly.
+In `@utils.py` around lines 51 - 56, The lambda function in the apply method for
+the "Schedule Number" column has an unsafe condition that raises OverflowError
+when x is infinity or an extremely large float value. The check x == int(x)
+fails because pd.notna(x) returns True for infinity values. Add a guard
+condition before the x == int(x) comparison to check if x is a finite number
+using math.isfinite() or np.isfinite(). If x is not finite (infinity or
+extremely large), convert it directly to string without attempting the int
+conversion to prevent the OverflowError and ensure the reconciliation pipeline
+continues processing even when Excel files contain formula errors producing
+infinity values.
