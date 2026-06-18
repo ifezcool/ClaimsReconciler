@@ -1,6 +1,7 @@
 import streamlit as st
 import pyodbc
 from dotenv import load_dotenv
+import math
 import os
 import pandas as pd
 from datetime import datetime
@@ -53,7 +54,7 @@ def _clean_value(val, col_name, date_columns, numeric_columns):
         except (ValueError, TypeError):
             pass
     result = str(val).strip()
-    if isinstance(val, float) and val == int(val):
+    if isinstance(val, float) and math.isfinite(val) and val == int(val):
         result = str(int(val))
     return result
 
