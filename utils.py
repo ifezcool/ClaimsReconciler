@@ -47,7 +47,13 @@ def extract_schedule_data(df, schedule_col, amount_col):
     result_df.columns = ["Schedule Number", "Amount"]
 
     # Convert schedule numbers to string for consistency
-    result_df["Schedule Number"] = result_df["Schedule Number"].astype(str)
+    # Handle float-to-int conversion to avoid "9820.0" instead of "9820"
+    result_df["Schedule Number"] = result_df["Schedule Number"].apply(
+        lambda x: str(int(x))
+        if pd.notna(x) and isinstance(x, (float, np.floating)) and x == int(x)
+        else str(x) if pd.notna(x)
+        else ""
+    )
 
     # Convert amounts to float, handling potential errors
     result_df["Amount"] = pd.to_numeric(result_df["Amount"], errors="coerce")

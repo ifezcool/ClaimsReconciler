@@ -52,7 +52,10 @@ def _clean_value(val, col_name, date_columns, numeric_columns):
             return str(int(float(val)))
         except (ValueError, TypeError):
             pass
-    return str(val).strip()
+    result = str(val).strip()
+    if isinstance(val, float) and val == int(val):
+        result = str(int(val))
+    return result
 
 def _build_column_definitions(db_columns, date_columns, numeric_columns):
     defs = []
