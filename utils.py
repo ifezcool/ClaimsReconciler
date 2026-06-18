@@ -312,6 +312,13 @@ def send_variance_email(variance_type, missing_schedules=None, amount_variances=
         return
 
     try:
+        validate_email_list([recipient_email], context=f"send_variance_email/{variance_type}/to")
+    except ValueError as e:
+        logger.error(f"Invalid recipient email: {e}")
+        print(f"Invalid recipient email: {e}")
+        return
+
+    try:
         # Create message
         msg = MIMEMultipart()
         msg['From'] = sender_email

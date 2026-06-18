@@ -1,53 +1,117 @@
-# Claims Reconciliation App — Review & Fix Instructions
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-Context for the agent: this is a Streamlit app (`streamlit_app.py` as entry point) that reconciles claims data between a Claims department and a Finance department, compiles per-category submission files (Telemedicine, Ambulance, Appeals), and uploads cleaned data into SQL Server tables via pyodbc. Work through the items below in order — Critical first.
+In `@compilation_common.py` at line 124, The conditional assignment to df_clean at
+line 124 incorrectly falls back to copying the entire dataframe when data_rows
+is empty, which causes malformed or totals-only sheets to be treated as valid
+claim detail data. Instead of using df.copy() as the fallback when data_rows is
+empty, create an empty dataframe or handle the absence of valid detail rows
+explicitly to prevent invalid data from being compiled.
 
-## CRITICAL — bugs and security
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-1. **Email CC list bug in `utils.py`** (`send_variance_email`): the list literal is missing a comma —
-   `cc_email = ["ifeoluwa.adeniyi@avonhealthcare.com"  "adedamola.ayeni@avonhealthcare.com", ...]`
-   Python silently concatenates the first two strings into one invalid address. Fix the missing comma and add a unit test or assertion that validates every entry in `cc_email`/`cc_list` looks like a valid email before sending.
+In `@compilation_common.py` around lines 131 - 138, The else branch uses
+astype(str) which converts missing values into the literal string "nan", causing
+problems in downstream finance comparisons and aggregation. Replace the
+astype(str) conversion with the same lambda-based approach used for the special
+columns (S_N, BATCH_NUMBER, PROVIDER_CODE) that checks pd.notna(x), converts
+non-missing values to strings, and returns empty strings for missing values to
+properly preserve NaN as missing rather than as a string literal.
 
-3. **Row-insert loop aborts on first failure instead of skipping it.** In `AmbulanceUpload.py`, `AppealsUpload.py`, `TelemedicineUpload.py`, and `DB_Upload.py`, the per-row insert loop does:
-   ```python
-   except Exception as e:
-       st.error(f"Row {i+1} failed: {e}")
-       break
-   ```
-   `break` stops processing every subsequent row in the file, so one bad row silently discards the rest of the upload while reporting only partial success. Change to `continue`, accumulate a list of failed rows with their error messages, show that list at the end, and don't `commit()` until you've decided how to handle partial failures (see #4).
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-4. **No transaction safety around bulk inserts.** All four upload scripts call `conn.commit()` once at the end regardless of how many rows failed. Wrap the insert batch in an explicit transaction; on a fatal error, roll back rather than partially committing. Consider switching to `cursor.executemany()` / `fast_executemany=True` (pyodbc) for both speed and to make the row-level error story explicit rather than emergent from a Python for-loop.
+In `@compilation_common.py` around lines 210 - 215, The code at lines 210-215 has
+two issues: the str.contains method with str(sch) over-matches partial schedule
+numbers (e.g., schedule 12 matches 112), and Claims_Advised_Amount may be
+formatted as strings from Excel causing sum to fail or produce incorrect
+results. Replace the str.contains substring matching with exact value matching
+by converting the Claim Batch No/Sch No column to numeric type and using
+equality comparison with sch, and convert Claims_Advised_Amount to numeric type
+using pandas pd.to_numeric with error handling before calling sum to ensure
+proper aggregation of amounts.
 
-5. **Hardcoded recipient lists scattered across 5 files** (`ambulance.py`, `appeals_page.py`, `telemedicine.py`, `session_manager.py`, `utils.py`), each slightly different. Move all recipient/CC lists into `secrets.env` (or a config module) as a single source of truth, e.g. `NOTIFY_TO`, `NOTIFY_CC_CLAIMS`, `NOTIFY_CC_FINANCE`. This avoids the current risk of one list getting updated and the others drifting.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-## HIGH — eliminate the duplicated modules
+In `@compilation_common.py` around lines 242 - 256, The email notification code in
+the compilation_common.py section does not validate email addresses before using
+them with SMTP. The functions get_to_email() and get_cc_list() return
+configuration values that should be validated for proper email format to prevent
+SMTP failures. Reuse the recipient email validation logic that was added to
+utils.py and apply it to validate the recipient_email returned from
+get_to_email() and the addresses in cc_list returned from get_cc_list(). If
+validation fails for any address, log an appropriate error and return False
+before attempting to construct or send the email message.
 
-This is the most impactful change. Right now:
-- `AmbulanceUpload.py`, `AppealsUpload.py`, `TelemedicineUpload.py` (and most of `DB_Upload.py`) are the same script three/four times over, differing only in table name, a few labels, and the `column_mapping` dict.
-- `ambulance.py`, `appeals_page.py`, `telemedicine.py` are the same compilation/comparison/email-notification logic three times over.
-- `instructions.txt` literally documents a manual find-and-replace process for creating the next copy. That's a maintenance liability: every future bug fix (like #3 above) has to be applied N times by hand and will eventually drift.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-Refactor instructions:
-- Create `db_upload_common.py` exporting one function, e.g. `render_generic_upload(table_name, column_mapping, date_columns, numeric_columns, consolidate_target)`. Each of `AmbulanceUpload.py` etc. becomes a 3-line wrapper that calls it with that category's config.
-- Create `compilation_common.py` exporting `compile_files(...)`, `create_compiled_excel(...)`, `compare_with_finance(...)`, `send_notification_email(...)`, `extract_schedule_from_filename(...)`, `get_download_link(...)`, and `show_compilation_page(label, session_keys, ...)`, all parameterized by category name/label instead of hardcoded "telemedicine"/"ambulance"/"appeals" strings. `telemedicine.py`, `ambulance.py`, `appeals_page.py` become thin wrappers.
-- Once this exists, adding a new claim category (e.g. "Dental") should mean adding one config entry, not duplicating ~300 lines of code.
+In `@compilation_common.py` around lines 276 - 287, The Schedule_Number and
+Source_Files values from uploaded data are being directly interpolated into HTML
+without escaping, which creates an HTML injection vulnerability. Import the
+html.escape function from Python's standard library at the top of the file, then
+apply html.escape() to all instances where Schedule_Number and Source_Files are
+inserted into the HTML strings (both in the missing_schedules section and in the
+amount_mismatches loop where you build the table rows with f-strings). This will
+safely encode any special HTML characters in these user-provided values.
 
-## MEDIUM — data integrity & performance
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-7. **All non-date DB columns are `VARCHAR(MAX)`**, including amount and count fields (`AMOUNT_RECOMMENDED_FOR_PAYMENT_N`, `APPROVED_PA_VALUE_N`, `PA_AMOUNT`, `AMOUNT_CLAIMED`, `NO_OF_UNITS`, etc.). This makes SQL-side aggregation, sorting, and BI reporting on these tables harder/slower and loses type safety. Use `DECIMAL(18,2)` for money fields and `INT` for counts; only keep free-text fields as `VARCHAR`.
+In `@config.py` around lines 29 - 36, The logging.basicConfig() call in config.py
+unconditionally creates a FileHandler that attempts to write to
+"claims_reconciler.log" during module import, which can crash the application if
+the working directory is not writable. Refactor the logging configuration to
+make the FileHandler optional and configurable, while ensuring the StreamHandler
+remains as a mandatory fallback. Consider using an environment variable or
+configuration flag to control whether file logging is enabled, and only add the
+FileHandler to the handlers list if that condition is met.
 
-8. **The "consolidate" step is a manual SSMS copy-paste** (`st.code("INSERT INTO Compiled_X SELECT * FROM xtbl")` shown to the user after every upload). Automate this: after a successful upload (and ideally behind a confirmation checkbox), run the same `INSERT INTO ... SELECT * FROM ...` from the app itself.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-9. **No automatic truncate before upload** — the file uploader labels just say "please truncate before uploading," relying entirely on the user remembering. Add a checkbox ("I have truncated this table" / "Truncate now") that the app can act on directly, or have the app check `SELECT COUNT(*) FROM table` and warn if it's non-empty before inserting.
+In `@db_upload_common.py` around lines 22 - 32, The _convert_date function
+currently returns None when a date string doesn't match any supported format,
+causing invalid dates to be silently stored as NULL. Instead, raise a ValueError
+with a descriptive message after the format-matching loop completes without
+success (replacing the final return None statement). This will allow the
+existing row-failure reporting mechanism to catch and handle invalid date inputs
+properly.
 
-10. **No schema validation before insert.** If an expected Excel column is missing, the code just inserts `None` for that field silently (only `DB_Upload.py` surfaces a warning via `missing_in_mapping`/`missing_in_excel`). Add the same up-front "expected vs. found columns" check to the other three upload scripts, and refuse to proceed (or require explicit override) if required columns are absent.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-## LOW — cleanup
+In `@db_upload_common.py` around lines 169 - 176, The current code commits
+successful rows to the database whenever success_count is greater than zero,
+even when failed_rows exist, leaving the table partially populated with
+incomplete data. To fix this, check whether the failed_rows collection is empty
+before deciding to commit or rollback. If failed_rows has any entries, call
+conn.rollback() to undo all changes in the batch and display an error message.
+Only call conn.commit() when failed_rows is empty, ensuring atomicity—either all
+rows are uploaded successfully or none are persisted to maintain data integrity.
 
-11. Replace the manual base64 `<a href="data:...">` download links (`get_download_link` in all three compilation files) with `st.download_button`, which is already used correctly elsewhere in `streamlit_app.py` and avoids `unsafe_allow_html=True`.
-12. Add basic logging (Python `logging` to file or a DB audit table) for who uploaded what and when — useful for a financial reconciliation tool and currently absent; only `print()` debug statements exist.
-13. Pin `requirements.txt` to exact versions you've tested (`==`) rather than `>=`, to avoid a future `pip install` silently picking up a breaking pandas/streamlit release.
-14. Add a handful of unit tests for the pure-logic helpers in `utils.py` (`extract_schedule_data`, `find_missing_schedules`, `calculate_schedule_amounts`, `generate_reconciliation_report`) and for the `clean_value`/date-parsing functions, since these drive financial figures and currently have zero test coverage.
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
 
-## Suggested order of work for the agent
-Critical items (1–6) first since they're either active bugs or open security holes. Then do the HIGH refactor (it will make items 7–10 much easier to apply once, instead of four times). Finish with LOW cleanup. I intentionally deleted some numbers on the list because i feel i will handle those myself, you might notice there is no number 2, that is fine.
+In `@db_upload_common.py` around lines 180 - 182, The cursor.execute call in the
+consolidate operation uses INSERT INTO target SELECT * which relies on ordinal
+column matching and can corrupt data if columns are reordered or differ between
+tables. Replace the SELECT * syntax with explicit column lists that map the
+source table columns to the target table columns. Determine the column mapping
+between table_name and consolidate_target, then modify the INSERT statement to
+explicitly list the target columns after INSERT INTO and the corresponding
+source columns in the SELECT clause to ensure correct data flow regardless of
+column ordering.
+
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+In `@utils.py` around lines 306 - 323, The primary recipient email stored in
+recipient_email (from get_to_email()) is not being validated, while the CC list
+is validated using validate_email_list(). Add a call to validate_email_list()
+for recipient_email after it is retrieved from get_to_email() and before the
+message is created in MIMEMultipart(). Pass an appropriate context parameter
+like "send_variance_email/to" to identify this as validation for the primary
+recipient in the send_variance_email function.

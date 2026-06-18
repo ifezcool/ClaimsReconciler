@@ -3,12 +3,14 @@ import pandas as pd
 import io
 from datetime import datetime
 import re
+import html
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from dotenv import load_dotenv
 from config import get_cc_list, get_to_email, logger
+from utils import validate_email_list
 
 load_dotenv('secrets.env')
 
@@ -121,7 +123,10 @@ def compile_files(uploaded_files):
                     if non_empty >= 3:
                         data_rows.append(i)
 
-            df_clean = df.iloc[data_rows].copy() if data_rows else df.copy()
+            if not data_rows:
+                file_summary.append({'File': uploaded_file.name, 'Rows': 0, 'Status': 'No valid data rows found'})
+                continue
+            df_clean = df.iloc[data_rows].copy()
 
             data_dict = {}
             for col in TEMPLATE_COLUMNS:
@@ -130,12 +135,10 @@ def compile_files(uploaded_files):
 
             for orig_col, new_col in COLUMN_MAPPING.items():
                 if orig_col in df_clean.columns and new_col not in BLANK_COLUMNS:
-                    if new_col in ['S_N', 'BATCH_NUMBER', 'PROVIDER_CODE']:
-                        standardized_df[new_col] = df_clean[orig_col].apply(
-                            lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '').isdigit() else str(x) if pd.notna(x) else ''
-                        )
-                    else:
-                        standardized_df[new_col] = df_clean[orig_col].astype(str)
+                    standardized_df[new_col] = df_clean[orig_col].apply(
+                        lambda x: str(int(float(x))) if pd.notna(x) and str(x).replace('.', '').isdigit()
+                        else str(x) if pd.notna(x) else ''
+                    )
 
             standardized_df['Source_File'] = uploaded_file.name
             compiled_data.append(standardized_df)
@@ -207,11 +210,10 @@ def compare_with_finance(compiled_data, finance_file, config):
         for _, crow in grouped.iterrows():
             sch = crow['Schedule_Number']
             cat_amt = crow[amount_label]
-            ffiltered = finance_df[
-                finance_df['Claim Batch No/Sch No'].astype(str).str.contains(str(sch), na=False)
-            ]
+            finance_df['_sch_num'] = pd.to_numeric(finance_df['Claim Batch No/Sch No'], errors='coerce')
+            ffiltered = finance_df[finance_df['_sch_num'] == float(sch)]
             if not ffiltered.empty:
-                fin_amt = ffiltered['Claims_Advised_Amount'].sum()
+                fin_amt = pd.to_numeric(ffiltered['Claims_Advised_Amount'], errors='coerce').sum()
                 variance = cat_amt - fin_amt
                 results.append({
                     'Schedule_Number': sch,
@@ -246,6 +248,14 @@ def send_notification_email(missing_schedules, amount_mismatches, config):
         st.error("Office 365 credentials not configured.")
         return False
 
+    try:
+        validate_email_list([recipient_email], context=f"send_notification_email/{config['label_lower']}/to")
+        validate_email_list(cc_list, context=f"send_notification_email/{config['label_lower']}/cc")
+    except ValueError as e:
+        logger.error(f"Invalid email addresses: {e}")
+        st.error(f"Invalid email addresses. Check config: {e}")
+        return False
+
     label = config["label"]
     amount_label = config["amount_label"]
     subject = config["email_subject"]
@@ -273,7 +283,9 @@ def send_notification_email(missing_schedules, amount_mismatches, config):
             <tr style="background-color: #f2f2f2;"><th>Schedule Number</th><th>{label} Amount</th><th>Source Files</th></tr>
         """.replace("{label}", label)
         for _, row in missing_schedules.iterrows():
-            body += f"<tr><td>{row['Schedule_Number']}</td><td>{row[amount_label]:,.2f}</td><td>{row['Source_Files']}</td></tr>"
+            sch_esc = html.escape(str(row['Schedule_Number']))
+            src_esc = html.escape(str(row['Source_Files']))
+            body += f"<tr><td>{sch_esc}</td><td>{row[amount_label]:,.2f}</td><td>{src_esc}</td></tr>"
         body += "</table><br>"
         body += f"<p><strong>Total amount missing in Finance:</strong> {missing_schedules[amount_label].sum():,.2f}</p>"
 
@@ -284,7 +296,9 @@ def send_notification_email(missing_schedules, amount_mismatches, config):
         """.replace("{label}", label)
         for _, row in amount_mismatches.iterrows():
             vcolor = "red" if row['Variance'] > 0 else "blue"
-            body += f"<tr><td>{row['Schedule_Number']}</td><td>{row[amount_label]:,.2f}</td><td>{row['Finance_Amount']:,.2f}</td><td style='color: {vcolor};'>{row['Variance']:,.2f}</td><td>{row['Source_Files']}</td></tr>"
+            sch_esc = html.escape(str(row['Schedule_Number']))
+            src_esc = html.escape(str(row['Source_Files']))
+            body += f"<tr><td>{sch_esc}</td><td>{row[amount_label]:,.2f}</td><td>{row['Finance_Amount']:,.2f}</td><td style='color: {vcolor};'>{row['Variance']:,.2f}</td><td>{src_esc}</td></tr>"
         body += "</table><br>"
         body += f"<p><strong>Total variance:</strong> {amount_mismatches['Variance'].sum():,.2f}</p>"
 

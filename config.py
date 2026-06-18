@@ -26,12 +26,17 @@ def get_cc_list(key="default"):
 def get_to_email():
     return NOTIFY_TO
 
+LOG_FILE_ENABLED = os.getenv("LOG_FILE_ENABLED", "true").lower() in ("true", "1", "yes")
+_handlers = [logging.StreamHandler()]
+if LOG_FILE_ENABLED:
+    try:
+        _handlers.append(logging.FileHandler("claims_reconciler.log"))
+    except (OSError, PermissionError):
+        _handlers.append(logging.StreamHandler())
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler("claims_reconciler.log"),
-        logging.StreamHandler()
-    ]
+    handlers=_handlers,
 )
 logger = logging.getLogger(__name__)

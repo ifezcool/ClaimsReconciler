@@ -29,7 +29,7 @@ def _convert_date(date_val):
             return datetime.strptime(str(date_val), fmt)
         except ValueError:
             continue
-    return None
+    raise ValueError(f"Unrecognized date format: '{date_val}' — expected DD/MM/YYYY, YYYY-MM-DD, or MM/DD/YYYY")
 
 def _clean_value(val, col_name, date_columns, numeric_columns):
     if pd.isna(val) or str(val).strip() == '':
@@ -167,19 +167,20 @@ def render_generic_upload(
             progress_bar.progress((i + 1) / total_rows)
 
         if failed_rows:
-            st.warning(f"Failed rows ({len(failed_rows)}):")
+            st.error(f"Upload failed — {len(failed_rows)} row(s) had errors. Rolling back all changes.")
             for idx, err in failed_rows:
                 st.write(f"  Row {idx}: {err}")
-
-        if success_count > 0:
+            conn.rollback()
+        elif success_count > 0:
             conn.commit()
             st.success(f"Uploaded {success_count}/{total_rows} rows successfully to '{table_name}'.")
 
             if consolidate_target:
                 st.info(f"Consolidate to '{consolidate_target}'?")
-                if st.checkbox(f"INSERT INTO {consolidate_target} SELECT * FROM {table_name}"):
+                cols = ", ".join(db_columns)
+                if st.checkbox(f"INSERT INTO {consolidate_target} SELECT {cols} FROM {table_name}"):
                     try:
-                        cursor.execute(f"INSERT INTO {consolidate_target} SELECT * FROM {table_name}")
+                        cursor.execute(f"INSERT INTO {consolidate_target} ({cols}) SELECT {cols} FROM {table_name}")
                         conn.commit()
                         st.success(f"Data consolidated into '{consolidate_target}' successfully!")
                     except Exception as e:
