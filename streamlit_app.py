@@ -192,25 +192,32 @@ if finance_file is None and st.session_state.uploaded_finance_file is not None:
 # Always load the current session data
 latest_session_data = get_session_data()
 
-if not claims_file and 'claims' in latest_session_data and latest_session_data['claims'] is not None:
-    claims_data_copy = latest_session_data['claims']['file_data']
-    claims_file = io.BytesIO()
-    claims_data_copy.seek(0)
-    claims_file.write(claims_data_copy.read())
-    claims_file.seek(0)
-    st.session_state.claims_sheet = latest_session_data['claims']['sheet_name']
-    st.session_state.claims_schedule_col = latest_session_data['claims']['schedule_col']
-    st.session_state.claims_amount_col = latest_session_data['claims']['amount_col']
+restore_from_session = st.checkbox(
+    "Restore files from current session",
+    value=False,
+    key="restore_session_files"
+)
 
-if not finance_file and 'finance' in latest_session_data and latest_session_data['finance'] is not None:
-    finance_data_copy = latest_session_data['finance']['file_data']
-    finance_file = io.BytesIO()
-    finance_data_copy.seek(0)
-    finance_file.write(finance_data_copy.read())
-    finance_file.seek(0)
-    st.session_state.finance_sheet = latest_session_data['finance']['sheet_name']
-    st.session_state.finance_schedule_col = latest_session_data['finance']['schedule_col']
-    st.session_state.finance_amount_col = latest_session_data['finance']['amount_col']
+if restore_from_session:
+    if not claims_file and 'claims' in latest_session_data and latest_session_data['claims'] is not None:
+        claims_data_copy = latest_session_data['claims']['file_data']
+        claims_file = io.BytesIO()
+        claims_data_copy.seek(0)
+        claims_file.write(claims_data_copy.read())
+        claims_file.seek(0)
+        st.session_state.claims_sheet = latest_session_data['claims']['sheet_name']
+        st.session_state.claims_schedule_col = latest_session_data['claims']['schedule_col']
+        st.session_state.claims_amount_col = latest_session_data['claims']['amount_col']
+
+    if not finance_file and 'finance' in latest_session_data and latest_session_data['finance'] is not None:
+        finance_data_copy = latest_session_data['finance']['file_data']
+        finance_file = io.BytesIO()
+        finance_data_copy.seek(0)
+        finance_file.write(finance_data_copy.read())
+        finance_file.seek(0)
+        st.session_state.finance_sheet = latest_session_data['finance']['sheet_name']
+        st.session_state.finance_schedule_col = latest_session_data['finance']['schedule_col']
+        st.session_state.finance_amount_col = latest_session_data['finance']['amount_col']
 
 # Process files when both are uploaded
 if claims_file and finance_file:
@@ -343,10 +350,13 @@ if claims_file and finance_file:
 
             # Button to process the reconciliation
             if st.button("Process Reconciliation"):
-                with st.spinner("Processing reconciliation..."):
-                    # Extract and process data
-                    claims_data = extract_schedule_data(claims_df, claims_schedule_col, claims_amount_col)
-                    finance_data = extract_schedule_data(finance_df, finance_schedule_col, finance_amount_col)
+                if not claims_file or not finance_file:
+                    st.error("Both Claims and Finance files must be present to process reconciliation.")
+                else:
+                    with st.spinner("Processing reconciliation..."):
+                        # Extract and process data
+                        claims_data = extract_schedule_data(claims_df, claims_schedule_col, claims_amount_col)
+                        finance_data = extract_schedule_data(finance_df, finance_schedule_col, finance_amount_col)
 
                     # Calculate aggregated amounts for each schedule
                     claims_amounts = calculate_schedule_amounts(claims_data)

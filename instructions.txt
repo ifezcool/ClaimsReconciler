@@ -1,1 +1,25 @@
-hi
+Verify each finding against current code. Fix only still-valid issues, skip the
+rest with a brief reason, keep changes minimal, and validate.
+
+Inline comments:
+In `@streamlit_app.py`:
+- Around line 341-350: The code at line 342 displays an informational message
+when both claims_file and finance_file are missing, but the reconciliation
+processing block starting at line 345 with the st.button("Process
+Reconciliation") check does not verify that both files are present before
+executing. Add a guard condition to the st.button block to ensure that the
+reconciliation processing (lines 348-349 and beyond) only executes when both
+claims_file and finance_file are present. Either nest the processing logic
+inside an additional if statement that checks both file conditions, or modify
+the existing condition to return early if files are missing, preventing the
+extract_schedule_data function calls from being invoked with None or missing
+data sources.
+- Around line 192-213: The code automatically restores claims_file and
+finance_file from the session data returned by get_session_data() when the
+upload fields are empty, which can expose another user's previous uploads in a
+shared storage environment. Instead of implicitly restoring files based on the
+empty file check, add an explicit user action requirement such as a restore
+button or checkbox that the user must interact with before the file restoration
+logic in the conditional blocks (checking if not claims_file, if not
+finance_file) executes. This ensures session data is only restored when the user
+intentionally chooses to do so rather than automatically.
