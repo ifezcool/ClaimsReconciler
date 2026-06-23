@@ -16,6 +16,13 @@ from utils import (
     generate_enhanced_claims_excel,
     send_variance_email
 )
+from appeals_page import show_appeals_page
+from DB_Upload import render_dbpage
+from AppealsUpload import render_appeals_upload
+from telemedicine import show_telemedicine_page
+from TelemedicineUpload import render_telemedicine_upload
+from ambulance import show_ambulance_page
+from AmbulanceUpload import render_ambulance_upload
 
 st.set_page_config(
     page_title="Claims Reconciliation Tool",
@@ -23,25 +30,35 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize session state variables if they don't exist
-if 'uploaded_claims_file' not in st.session_state:
-    st.session_state.uploaded_claims_file = None
-if 'uploaded_finance_file' not in st.session_state:
-    st.session_state.uploaded_finance_file = None
-if 'claims_sheet' not in st.session_state:
-    st.session_state.claims_sheet = None
-if 'finance_sheet' not in st.session_state:
-    st.session_state.finance_sheet = None
-if 'claims_schedule_col' not in st.session_state:
-    st.session_state.claims_schedule_col = None
-if 'claims_amount_col' not in st.session_state:
-    st.session_state.claims_amount_col = None
-if 'finance_schedule_col' not in st.session_state:
-    st.session_state.finance_schedule_col = None
-if 'finance_amount_col' not in st.session_state:
-    st.session_state.finance_amount_col = None
-if 'generate_claims_excel' not in st.session_state:
-    st.session_state.generate_claims_excel = False
+def _init_session_state():
+    if 'uploaded_claims_file' not in st.session_state:
+        st.session_state.uploaded_claims_file = None
+    if 'uploaded_finance_file' not in st.session_state:
+        st.session_state.uploaded_finance_file = None
+    if 'claims_sheet' not in st.session_state:
+        st.session_state.claims_sheet = None
+    if 'finance_sheet' not in st.session_state:
+        st.session_state.finance_sheet = None
+    if 'claims_schedule_col' not in st.session_state:
+        st.session_state.claims_schedule_col = None
+    if 'claims_amount_col' not in st.session_state:
+        st.session_state.claims_amount_col = None
+    if 'finance_schedule_col' not in st.session_state:
+        st.session_state.finance_schedule_col = None
+    if 'finance_amount_col' not in st.session_state:
+        st.session_state.finance_amount_col = None
+    if 'generate_claims_excel' not in st.session_state:
+        st.session_state.generate_claims_excel = False
+    if 'department' not in st.session_state:
+        st.session_state.department = 'reconciliation'
+    if 'session_loaded' not in st.session_state:
+        st.session_state.session_loaded = False
+
+try:
+    _init_session_state()
+except RuntimeError:
+    st.error("Session not initialized. Please refresh the page.")
+    st.stop()
 
 # Page navigation
 page = st.sidebar.selectbox(
@@ -50,31 +67,24 @@ page = st.sidebar.selectbox(
 )
 
 if page == "Appeals Compilation":
-    from appeals_page import show_appeals_page
     show_appeals_page()
     st.stop()
 elif page == "DB_Upload":
-    from DB_Upload import render_dbpage
     render_dbpage()
     st.stop()
 elif page == "AppealsUpload":
-    from AppealsUpload import render_appeals_upload
     render_appeals_upload()
     st.stop()
 elif page == "Telemedicine Compilation":
-    from telemedicine import show_telemedicine_page
     show_telemedicine_page()
     st.stop()
 elif page == "Telemedicine Upload":
-    from TelemedicineUpload import render_telemedicine_upload
     render_telemedicine_upload()
     st.stop()
 elif page == "Ambulance Compilation":
-    from ambulance import show_ambulance_page
     show_ambulance_page()
     st.stop()
 elif page == "Ambulance Upload":
-    from AmbulanceUpload import render_ambulance_upload
     render_ambulance_upload()
     st.stop()
 
@@ -83,12 +93,6 @@ st.markdown("""
 This application automates the reconciliation process between Claims and Finance department reports.
 Upload the Excel reports from both departments to identify discrepancies in schedule numbers and amounts.
 """)
-
-# Initialize session state if not already initialized
-if 'department' not in st.session_state:
-    st.session_state.department = None
-if 'session_loaded' not in st.session_state:
-    st.session_state.session_loaded = False
 
 # Define file change callbacks
 def on_claims_file_change():
@@ -109,35 +113,10 @@ def on_finance_file_change():
         file_copy.seek(0)
         st.session_state.uploaded_finance_file = file_copy
 
-# Department selection and session management
-st.header("Department Selection")
-
-# Role selection
-dept_col1, dept_col2 = st.columns(2)
-with dept_col1:
-    department_options = ["Select Department", "Claims Department", "Finance Department", "Reconciliation Manager"]
-    selected_department = st.selectbox(
-        "Select your department:",
-        options=department_options,
-        index=0
-    )
-
-    # Handle department change while preserving uploaded files
-    if selected_department != "Select Department" and selected_department != st.session_state.department:
-        # Store any currently loaded files in session state before switching departments
-        if 'claims_file_uploader' in st.session_state and st.session_state.claims_file_uploader is not None:
-            on_claims_file_change()
-
-        if 'finance_file_uploader' in st.session_state and st.session_state.finance_file_uploader is not None:
-            on_finance_file_change()
-
-        # Update department
-        st.session_state.department = selected_department.split()[0].lower()  # Store 'claims', 'finance', or 'reconciliation'
-
-# Get available sessions
-available_sessions = get_available_sessions()
-with dept_col2:
-    if selected_department == "Reconciliation Manager" and available_sessions:
+# Session loading (optional)
+with st.expander("Load Previous Session"):
+    available_sessions = get_available_sessions()
+    if available_sessions:
         session_options = ["Current Week"] + available_sessions
         selected_session = st.selectbox(
             "Select session to load:",
@@ -159,16 +138,16 @@ with dept_col2:
             with col1:
                 if session_data['claims'] is not None:
                     claims_time = datetime.fromisoformat(session_data['claims']['timestamp'])
-                    st.success(f"✅ Claims file from {claims_time.strftime('%Y-%m-%d %H:%M')}")
+                    st.success(f"Claims file from {claims_time.strftime('%Y-%m-%d %H:%M')}")
                 else:
-                    st.warning("⚠️ No Claims file in this session")
+                    st.warning("No Claims file in this session")
 
             with col2:
                 if session_data['finance'] is not None:
                     finance_time = datetime.fromisoformat(session_data['finance']['timestamp'])
-                    st.success(f"✅ Finance file from {finance_time.strftime('%Y-%m-%d %H:%M')}")
+                    st.success(f"Finance file from {finance_time.strftime('%Y-%m-%d %H:%M')}")
                 else:
-                    st.warning("⚠️ No Finance file in this session")
+                    st.warning("No Finance file in this session")
 
             # Overall status
             if session_data['claims'] is not None and session_data['finance'] is not None:
@@ -179,9 +158,9 @@ with dept_col2:
 # File upload section
 st.header("Upload Files")
 
-# Determine which uploads to show based on department
-if st.session_state.department == 'claims':
-    # Only Claims upload
+col1, col2 = st.columns(2)
+
+with col1:
     st.markdown("### Claims Department File")
     claims_file = st.file_uploader(
         "Upload Claims Department Excel Report (PAYMENT SCHEDULE)",
@@ -189,10 +168,8 @@ if st.session_state.department == 'claims':
         key="claims_file_uploader",
         on_change=on_claims_file_change
     )
-    # Retain finance file from session state
-    finance_file = st.session_state.uploaded_finance_file
-elif st.session_state.department == 'finance':
-    # Only Finance upload
+
+with col2:
     st.markdown("### Finance Department File")
     finance_file = st.file_uploader(
         "Upload Finance Department Excel Report (Finance claims reconciliation)",
@@ -200,29 +177,6 @@ elif st.session_state.department == 'finance':
         key="finance_file_uploader",
         on_change=on_finance_file_change
     )
-    # Retain claims file from session state
-    claims_file = st.session_state.uploaded_claims_file
-else:
-    # Both uploads for reconciliation view
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### Claims Department File")
-        claims_file = st.file_uploader(
-            "Upload Claims Department Excel Report (PAYMENT SCHEDULE)",
-            type=["xlsx"],
-            key="claims_file_uploader",
-            on_change=on_claims_file_change
-        )
-
-    with col2:
-        st.markdown("### Finance Department File")
-        finance_file = st.file_uploader(
-            "Upload Finance Department Excel Report (Finance claims reconciliation)",
-            type=["xlsx"],
-            key="finance_file_uploader",
-            on_change=on_finance_file_change
-        )
 
 # Use session state files if available
 if claims_file is None and st.session_state.uploaded_claims_file is not None:
@@ -235,12 +189,16 @@ if finance_file is None and st.session_state.uploaded_finance_file is not None:
     # Need to seek to beginning as the file might have been read already
     finance_file.seek(0)
 
-# Always load the current session data for reconciliation manager
-if st.session_state.department == 'reconciliation':
-    # Get the latest session data (always reload this for reconciliation manager)
-    latest_session_data = get_session_data()
+# Always load the current session data
+latest_session_data = get_session_data()
 
-    # If in reconciliation view, always try to load both files from the session
+restore_from_session = st.checkbox(
+    "Restore files from current session",
+    value=False,
+    key="restore_session_files"
+)
+
+if restore_from_session:
     if not claims_file and 'claims' in latest_session_data and latest_session_data['claims'] is not None:
         claims_data_copy = latest_session_data['claims']['file_data']
         claims_file = io.BytesIO()
@@ -371,86 +329,46 @@ if claims_file and finance_file:
                     index=finance_df.columns.get_loc(finance_amount_col) if finance_amount_col else 0
                 )
 
-            # Handle single department uploads - Save to session first
-            dept = st.session_state.department
-            if dept in ['claims', 'finance'] and st.button(f"Upload {dept.capitalize()} Data"):
-                # Get current file and settings
-                if st.session_state.department == 'claims' and claims_file:
-                    # Save claims file to session
-                    file_copy = io.BytesIO()
-                    claims_file.seek(0)
-                    file_copy.write(claims_file.read())
-                    file_copy.seek(0)
+            # Uploaded Files Status
+            st.subheader("Uploaded Files Status")
+            status_col1, status_col2 = st.columns(2)
 
-                    try:
-                        save_upload(
-                            'claims', 
-                            file_copy, 
-                            selected_claims_sheet, 
-                            claims_schedule_col, 
-                            claims_amount_col
-                        )
-                        st.success(f"Claims data uploaded successfully! Finance department will be notified to upload their data.")
-                    except Exception as e:
-                        st.error(f"Error saving upload: {str(e)}")
+            with status_col1:
+                if claims_file:
+                    st.success("✅ Claims Department file loaded successfully")
+                else:
+                    st.warning("⚠️ Claims Department file not available")
 
-                elif st.session_state.department == 'finance' and finance_file:
-                    # Save finance file to session
-                    file_copy = io.BytesIO()
-                    finance_file.seek(0)
-                    file_copy.write(finance_file.read())
-                    file_copy.seek(0)
+            with status_col2:
+                if finance_file:
+                    st.success("✅ Finance Department file loaded successfully")
+                else:
+                    st.warning("⚠️ Finance Department file not available")
 
-                    try:
-                        save_upload(
-                            'finance', 
-                            file_copy, 
-                            selected_finance_sheet, 
-                            finance_schedule_col, 
-                            finance_amount_col
-                        )
-                        st.success(f"Finance data uploaded successfully! The reconciliation manager will be notified.")
-                    except Exception as e:
-                        st.error(f"Error saving upload: {str(e)}")
+            if not claims_file or not finance_file:
+                st.info("You need both Claims and Finance files to perform reconciliation. Either upload them directly or load from a previous session.")
 
-            # Status for Reconciliation Manager
-            if st.session_state.department == 'reconciliation':
-                st.subheader("Uploaded Files Status")
-                status_col1, status_col2 = st.columns(2)
-
-                with status_col1:
-                    if claims_file:
-                        st.success("✅ Claims Department file loaded successfully")
-                    else:
-                        st.warning("⚠️ Claims Department file not available")
-
-                with status_col2:
-                    if finance_file:
-                        st.success("✅ Finance Department file loaded successfully")
-                    else:
-                        st.warning("⚠️ Finance Department file not available")
-
+            # Button to process the reconciliation
+            if st.button("Process Reconciliation"):
                 if not claims_file or not finance_file:
-                    st.info("You need both Claims and Finance files to perform reconciliation. Either upload them directly or load from a previous session.")
-
-                # Button to process the reconciliation (for manager only)
-                if st.button("Process Reconciliation"):
+                    st.error("Both Claims and Finance files must be present to process reconciliation.")
+                else:
                     with st.spinner("Processing reconciliation..."):
                         # Extract and process data
                         claims_data = extract_schedule_data(claims_df, claims_schedule_col, claims_amount_col)
                         finance_data = extract_schedule_data(finance_df, finance_schedule_col, finance_amount_col)
 
-                        # Calculate aggregated amounts for each schedule
-                        claims_amounts = calculate_schedule_amounts(claims_data)
-                        finance_amounts = calculate_schedule_amounts(finance_data)
+                    # Calculate aggregated amounts for each schedule
+                    claims_amounts = calculate_schedule_amounts(claims_data)
+                    finance_amounts = calculate_schedule_amounts(finance_data)
 
-                    # Store variables in session state
-                    st.session_state.claims_data = claims_data
-                    st.session_state.finance_data = finance_data
-                    st.session_state.claims_amounts = claims_amounts
-                    st.session_state.finance_amounts = finance_amounts
-                    st.session_state.reconciliation_processed = True
-                    st.session_state.emails_sent = False  # Reset email flag for new reconciliation
+                # Store variables in session state
+                st.session_state.claims_data = claims_data
+                st.session_state.finance_data = finance_data
+                st.session_state.claims_amounts = claims_amounts
+                st.session_state.finance_amounts = finance_amounts
+                st.session_state.reconciliation_processed = True
+                st.session_state.emails_sent = False  # Reset email flag for new reconciliation
 
             # Check if reconciliation data is available
             if ('claims_amounts' in st.session_state and 'finance_amounts' in st.session_state and 

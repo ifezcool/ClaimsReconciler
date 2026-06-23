@@ -1,25 +1,25 @@
 Verify each finding against current code. Fix only still-valid issues, skip the
 rest with a brief reason, keep changes minimal, and validate.
 
-In `@db_upload_common.py` around lines 55 - 58, The condition on line 56 that
-compares `val == int(val)` will raise OverflowError or ValueError when val is
-infinity or NaN, which can occur from Excel formulas. Add a guard using
-math.isfinite() to check if the float value is finite before attempting the int
-conversion. Update the condition from `if isinstance(val, float) and val ==
-int(val):` to also check `math.isfinite(val)` so that infinity and NaN values
-skip the integer conversion and are returned as their string representation
-instead. Remember to import the math module at the top of the file.
-
-Verify each finding against current code. Fix only still-valid issues, skip the
-rest with a brief reason, keep changes minimal, and validate.
-
-In `@utils.py` around lines 51 - 56, The lambda function in the apply method for
-the "Schedule Number" column has an unsafe condition that raises OverflowError
-when x is infinity or an extremely large float value. The check x == int(x)
-fails because pd.notna(x) returns True for infinity values. Add a guard
-condition before the x == int(x) comparison to check if x is a finite number
-using math.isfinite() or np.isfinite(). If x is not finite (infinity or
-extremely large), convert it directly to string without attempting the int
-conversion to prevent the OverflowError and ensure the reconciliation pipeline
-continues processing even when Excel files contain formula errors producing
-infinity values.
+Inline comments:
+In `@streamlit_app.py`:
+- Around line 341-350: The code at line 342 displays an informational message
+when both claims_file and finance_file are missing, but the reconciliation
+processing block starting at line 345 with the st.button("Process
+Reconciliation") check does not verify that both files are present before
+executing. Add a guard condition to the st.button block to ensure that the
+reconciliation processing (lines 348-349 and beyond) only executes when both
+claims_file and finance_file are present. Either nest the processing logic
+inside an additional if statement that checks both file conditions, or modify
+the existing condition to return early if files are missing, preventing the
+extract_schedule_data function calls from being invoked with None or missing
+data sources.
+- Around line 192-213: The code automatically restores claims_file and
+finance_file from the session data returned by get_session_data() when the
+upload fields are empty, which can expose another user's previous uploads in a
+shared storage environment. Instead of implicitly restoring files based on the
+empty file check, add an explicit user action requirement such as a restore
+button or checkbox that the user must interact with before the file restoration
+logic in the conditional blocks (checking if not claims_file, if not
+finance_file) executes. This ensures session data is only restored when the user
+intentionally chooses to do so rather than automatically.
