@@ -1,25 +1,7 @@
-Verify each finding against current code. Fix only still-valid issues, skip the
-rest with a brief reason, keep changes minimal, and validate.
-
-Inline comments:
-In `@streamlit_app.py`:
-- Around line 341-350: The code at line 342 displays an informational message
-when both claims_file and finance_file are missing, but the reconciliation
-processing block starting at line 345 with the st.button("Process
-Reconciliation") check does not verify that both files are present before
-executing. Add a guard condition to the st.button block to ensure that the
-reconciliation processing (lines 348-349 and beyond) only executes when both
-claims_file and finance_file are present. Either nest the processing logic
-inside an additional if statement that checks both file conditions, or modify
-the existing condition to return early if files are missing, preventing the
-extract_schedule_data function calls from being invoked with None or missing
-data sources.
-- Around line 192-213: The code automatically restores claims_file and
-finance_file from the session data returned by get_session_data() when the
-upload fields are empty, which can expose another user's previous uploads in a
-shared storage environment. Instead of implicitly restoring files based on the
-empty file check, add an explicit user action requirement such as a restore
-button or checkbox that the user must interact with before the file restoration
-logic in the conditional blocks (checking if not claims_file, if not
-finance_file) executes. This ensures session data is only restored when the user
-intentionally chooses to do so rather than automatically.
+File: streamlit_app.py
+Fix 1 — file position bug (this is why uploads do nothing)
+After claims_file = st.file_uploader(...) and after finance_file = st.file_uploader(...), add an immediate seek(0) call on each file if it's not None. This resets the cursor so pandas can read from the beginning regardless of what the on_change callback did to the position. Also add the same seek(0) calls on both files at the start of the if claims_file and finance_file: processing block, before pd.ExcelFile() is called, as a defensive measure for subsequent reruns.
+Fix 2 — remove the session restore checkbox and expander
+Delete the entire with st.expander("Load Previous Session"): block. Delete the latest_session_data = get_session_data() line. Delete the restore_from_session = st.checkbox(...) line and the entire if restore_from_session: block beneath it. These together are the confusing checkbox and the unnecessary session-loading UI.
+Fix 3 — remove dead imports
+Since the session restore UI is gone and the save_upload button was already removed in the previous changes, nothing in streamlit_app.py uses session_manager anymore. Remove save_upload, get_session_data, get_available_sessions from the from session_manager import ... line at the top of the file. If the line is then empty, delete it entirely. session_manager.py itself can stay in the repo for now since it's harmless, but it's dead code.
