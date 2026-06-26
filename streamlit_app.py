@@ -7,7 +7,7 @@ import openpyxl
 from openpyxl.utils.dataframe import dataframe_to_rows
 from datetime import datetime
 import base64
-from session_manager import save_upload, get_session_data, get_available_sessions
+
 from utils import (
     extract_schedule_data,
     find_missing_schedules,
@@ -113,48 +113,6 @@ def on_finance_file_change():
         file_copy.seek(0)
         st.session_state.uploaded_finance_file = file_copy
 
-# Session loading (optional)
-with st.expander("Load Previous Session"):
-    available_sessions = get_available_sessions()
-    if available_sessions:
-        session_options = ["Current Week"] + available_sessions
-        selected_session = st.selectbox(
-            "Select session to load:",
-            options=session_options,
-            index=0
-        )
-
-        if st.button("Load Selected Session"):
-            session_id = None if selected_session == "Current Week" else selected_session
-            session_data = get_session_data(session_id)
-
-            # Store session data in session state
-            st.session_state.selected_session = session_id
-            st.session_state.session_data = session_data
-            st.session_state.session_loaded = True
-
-            # Display status messages for both departments
-            col1, col2 = st.columns(2)
-            with col1:
-                if session_data['claims'] is not None:
-                    claims_time = datetime.fromisoformat(session_data['claims']['timestamp'])
-                    st.success(f"Claims file from {claims_time.strftime('%Y-%m-%d %H:%M')}")
-                else:
-                    st.warning("No Claims file in this session")
-
-            with col2:
-                if session_data['finance'] is not None:
-                    finance_time = datetime.fromisoformat(session_data['finance']['timestamp'])
-                    st.success(f"Finance file from {finance_time.strftime('%Y-%m-%d %H:%M')}")
-                else:
-                    st.warning("No Finance file in this session")
-
-            # Overall status
-            if session_data['claims'] is not None and session_data['finance'] is not None:
-                st.success("Both Claims and Finance files loaded successfully!")
-            elif session_data['claims'] is None and session_data['finance'] is None:
-                st.error("No data available in the selected session.")
-
 # File upload section
 st.header("Upload Files")
 
@@ -168,6 +126,8 @@ with col1:
         key="claims_file_uploader",
         on_change=on_claims_file_change
     )
+    if claims_file:
+        claims_file.seek(0)
 
 with col2:
     st.markdown("### Finance Department File")
@@ -177,6 +137,8 @@ with col2:
         key="finance_file_uploader",
         on_change=on_finance_file_change
     )
+    if finance_file:
+        finance_file.seek(0)
 
 # Use session state files if available
 if claims_file is None and st.session_state.uploaded_claims_file is not None:
@@ -189,40 +151,14 @@ if finance_file is None and st.session_state.uploaded_finance_file is not None:
     # Need to seek to beginning as the file might have been read already
     finance_file.seek(0)
 
-# Always load the current session data
-latest_session_data = get_session_data()
-
-restore_from_session = st.checkbox(
-    "Restore files from current session",
-    value=False,
-    key="restore_session_files"
-)
-
-if restore_from_session:
-    if not claims_file and 'claims' in latest_session_data and latest_session_data['claims'] is not None:
-        claims_data_copy = latest_session_data['claims']['file_data']
-        claims_file = io.BytesIO()
-        claims_data_copy.seek(0)
-        claims_file.write(claims_data_copy.read())
-        claims_file.seek(0)
-        st.session_state.claims_sheet = latest_session_data['claims']['sheet_name']
-        st.session_state.claims_schedule_col = latest_session_data['claims']['schedule_col']
-        st.session_state.claims_amount_col = latest_session_data['claims']['amount_col']
-
-    if not finance_file and 'finance' in latest_session_data and latest_session_data['finance'] is not None:
-        finance_data_copy = latest_session_data['finance']['file_data']
-        finance_file = io.BytesIO()
-        finance_data_copy.seek(0)
-        finance_file.write(finance_data_copy.read())
-        finance_file.seek(0)
-        st.session_state.finance_sheet = latest_session_data['finance']['sheet_name']
-        st.session_state.finance_schedule_col = latest_session_data['finance']['schedule_col']
-        st.session_state.finance_amount_col = latest_session_data['finance']['amount_col']
-
 # Process files when both are uploaded
 if claims_file and finance_file:
     try:
         st.header("File Analysis")
+
+        # Reset file positions before reading
+        claims_file.seek(0)
+        finance_file.seek(0)
 
         # Load files with pandas
         claims_xls = pd.ExcelFile(claims_file)
