@@ -90,17 +90,27 @@ def render_generic_upload(
         type=["xlsx"],
         help=uploader_help,
     )
+
     if uploaded_file is None:
         return
 
-    excel_bytes = uploaded_file.read()
-    workbook = load_workbook(io.BytesIO(excel_bytes), data_only=True)
-    sheet = workbook.active
-    data = list(sheet.values)
-    headers = [str(h).strip() if h else '' for h in data[0]]
-    rows = data[1:]
-    df = pd.DataFrame(rows, columns=headers)
-    df.columns = df.columns.str.strip()
+    # --- Cache parsed dataframe so reruns don't re-read/re-parse the file ---
+    cache_key = f"_parsed_df_{table_name}"
+    file_id_key = f"_parsed_file_id_{table_name}"
+
+    if st.session_state.get(file_id_key) != uploaded_file.file_id:
+        excel_bytes = uploaded_file.read()
+        workbook = load_workbook(io.BytesIO(excel_bytes), data_only=True)
+        sheet = workbook.active
+        data = list(sheet.values)
+        headers = [str(h).strip() if h else '' for h in data[0]]
+        rows = data[1:]
+        df = pd.DataFrame(rows, columns=headers)
+        df.columns = df.columns.str.strip()
+        st.session_state[cache_key] = df
+        st.session_state[file_id_key] = uploaded_file.file_id
+    else:
+        df = st.session_state[cache_key]
 
     st.write("Preview of uploaded data:")
     st.write(df.head())
@@ -116,7 +126,7 @@ def render_generic_upload(
         st.info(f"Columns in Excel but not in mapping: {missing_in_mapping}")
 
     required = set(column_mapping.keys()) - {'VARIANCE', 'VARIANCE1', 'NARRATION', 'NARRATIVE',
-        'Paiddate', 'SCH_NO', 'APPEAL_NO', 'SCH_NUM', 'Source_File'}
+                                              'Paiddate', 'SCH_NO', 'APPEAL_NO', 'SCH_NUM', 'Source_File'}
     missing_required = required - excel_cols
     if missing_required:
         st.error(f"Required columns missing from Excel: {missing_required}. Refusing to proceed.")
@@ -130,78 +140,91 @@ def render_generic_upload(
             st.info("Check the box above to confirm truncation or proceed anyway.")
             return
 
-    try:
-        conn = _get_connection()
-        cursor = conn.cursor()
-        conn.autocommit = False
+    # --- Guard: skip insert if this exact file was already inserted this session ---
+    inserted_key = f"_inserted_{table_name}"
 
-        col_defs = _build_column_definitions(db_columns, date_columns, numeric_columns)
-        create_query = f"""
-        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='{table_name}' AND xtype='U')
-        CREATE TABLE {table_name} (
-            {', '.join(col_defs)}
-        )
-        """
-        cursor.execute(create_query)
+    if st.session_state.get(inserted_key) == uploaded_file.file_id:
+        st.info(f"'{uploaded_file.name}' was already uploaded to '{table_name}' this session. "
+                f"Upload a different file, or refresh the page to reset, before uploading again.")
+    else:
+        try:
+            conn = _get_connection()
+            cursor = conn.cursor()
+            conn.autocommit = False
 
-        insert_query = f"""
-        INSERT INTO {table_name} ({', '.join(db_columns)})
-        VALUES ({', '.join(['?'] * len(db_columns))})
-        """
+            col_defs = _build_column_definitions(db_columns, date_columns, numeric_columns)
+            create_query = f"""
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='{table_name}' AND xtype='U')
+            CREATE TABLE {table_name} (
+                {', '.join(col_defs)}
+            )
+            """
+            cursor.execute(create_query)
 
-        progress_bar = st.progress(0)
-        total_rows = len(df)
-        success_count = 0
-        failed_rows = []
+            insert_query = f"""
+            INSERT INTO {table_name} ({', '.join(db_columns)})
+            VALUES ({', '.join(['?'] * len(db_columns))})
+            """
 
-        for i, row in df.iterrows():
-            try:
-                values = []
-                for db_col in db_columns:
-                    excel_col = next(k for k, v in column_mapping.items() if v == db_col)
-                    if excel_col in df.columns:
-                        values.append(_clean_value(row[excel_col], db_col, date_columns, numeric_columns))
-                    else:
-                        values.append(None)
-                cursor.execute(insert_query, values)
-                success_count += 1
-            except Exception as e:
-                failed_rows.append((i + 1, str(e)))
-                logger.warning(f"Row {i+1} failed in {table_name}: {e}")
-            progress_bar.progress((i + 1) / total_rows)
+            progress_bar = st.progress(0)
+            total_rows = len(df)
+            success_count = 0
+            failed_rows = []
 
-        if failed_rows:
-            st.error(f"Upload failed — {len(failed_rows)} row(s) had errors. Rolling back all changes.")
-            for idx, err in failed_rows:
-                st.write(f"  Row {idx}: {err}")
-            conn.rollback()
-        elif success_count > 0:
-            conn.commit()
-            st.success(f"Uploaded {success_count}/{total_rows} rows successfully to '{table_name}'.")
+            for i, row in df.iterrows():
+                try:
+                    values = []
+                    for db_col in db_columns:
+                        excel_col = next(k for k, v in column_mapping.items() if v == db_col)
+                        if excel_col in df.columns:
+                            values.append(_clean_value(row[excel_col], db_col, date_columns, numeric_columns))
+                        else:
+                            values.append(None)
+                    cursor.execute(insert_query, values)
+                    success_count += 1
+                except Exception as e:
+                    failed_rows.append((i + 1, str(e)))
+                    logger.warning(f"Row {i+1} failed in {table_name}: {e}")
+                progress_bar.progress((i + 1) / total_rows)
 
-            if consolidate_target:
-                st.info(f"Consolidate to '{consolidate_target}'?")
-                cols = ", ".join(db_columns)
-                if st.checkbox(f"INSERT INTO {consolidate_target} SELECT {cols} FROM {table_name}"):
-                    try:
-                        cursor.execute(f"INSERT INTO {consolidate_target} ({cols}) SELECT {cols} FROM {table_name}")
-                        conn.commit()
-                        st.success(f"Data consolidated into '{consolidate_target}' successfully!")
-                    except Exception as e:
-                        st.error(f"Consolidation failed: {e}")
-                        conn.rollback()
-        else:
-            conn.rollback()
-            st.error("No rows were successfully inserted. Transaction rolled back.")
-
-    except Exception as e:
-        st.error(f"Database error: {e}")
-        logger.error(f"Database error in {table_name} upload: {e}", exc_info=True)
-        if 'conn' in locals():
-            try:
+            if failed_rows:
+                st.error(f"Upload failed — {len(failed_rows)} row(s) had errors. Rolling back all changes.")
+                for idx, err in failed_rows:
+                    st.write(f"  Row {idx}: {err}")
                 conn.rollback()
-            except Exception:
-                pass
-    finally:
-        if 'conn' in locals():
-            conn.close()
+            elif success_count > 0:
+                conn.commit()
+                st.session_state[inserted_key] = uploaded_file.file_id  # mark this file as inserted
+                st.success(f"Uploaded {success_count}/{total_rows} rows successfully to '{table_name}'.")
+
+                if consolidate_target:
+                    st.info(f"Consolidate to '{consolidate_target}'?")
+                    cols = ", ".join(db_columns)
+                    if st.checkbox(f"INSERT INTO {consolidate_target} SELECT {cols} FROM {table_name}"):
+                        consolidate_key = f"_consolidated_{consolidate_target}_{uploaded_file.file_id}"
+                        if st.session_state.get(consolidate_key):
+                            st.info(f"Already consolidated into '{consolidate_target}' for this file.")
+                        else:
+                            try:
+                                cursor.execute(f"INSERT INTO {consolidate_target} ({cols}) SELECT {cols} FROM {table_name}")
+                                conn.commit()
+                                st.session_state[consolidate_key] = True
+                                st.success(f"Data consolidated into '{consolidate_target}' successfully!")
+                            except Exception as e:
+                                st.error(f"Consolidation failed: {e}")
+                                conn.rollback()
+            else:
+                conn.rollback()
+                st.error("No rows were successfully inserted. Transaction rolled back.")
+
+        except Exception as e:
+            st.error(f"Database error: {e}")
+            logger.error(f"Database error in {table_name} upload: {e}", exc_info=True)
+            if 'conn' in locals():
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            if 'conn' in locals():
+                conn.close()
