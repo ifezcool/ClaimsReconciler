@@ -1,7 +1,1 @@
-File: streamlit_app.py
-Fix 1 — file position bug (this is why uploads do nothing)
-After claims_file = st.file_uploader(...) and after finance_file = st.file_uploader(...), add an immediate seek(0) call on each file if it's not None. This resets the cursor so pandas can read from the beginning regardless of what the on_change callback did to the position. Also add the same seek(0) calls on both files at the start of the if claims_file and finance_file: processing block, before pd.ExcelFile() is called, as a defensive measure for subsequent reruns.
-Fix 2 — remove the session restore checkbox and expander
-Delete the entire with st.expander("Load Previous Session"): block. Delete the latest_session_data = get_session_data() line. Delete the restore_from_session = st.checkbox(...) line and the entire if restore_from_session: block beneath it. These together are the confusing checkbox and the unnecessary session-loading UI.
-Fix 3 — remove dead imports
-Since the session restore UI is gone and the save_upload button was already removed in the previous changes, nothing in streamlit_app.py uses session_manager anymore. Remove save_upload, get_session_data, get_available_sessions from the from session_manager import ... line at the top of the file. If the line is then empty, delete it entirely. session_manager.py itself can stay in the repo for now since it's harmless, but it's dead code.
+hi
