@@ -133,4 +133,5 @@ def render_dbpage():
         },
         consolidate_target='[Claims Schedules Consolidated Mastersheet]',
         file_label="Claims (Please truncate claimstbl before uploading)",
+        column_aliases={'ReceivedDate': ['ReviewedDate'], 'DATE CLAIM RECEIVED': ['DATE RECEIVED']},
     )
