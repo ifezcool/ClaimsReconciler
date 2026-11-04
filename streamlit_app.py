@@ -347,7 +347,7 @@ if claims_file and finance_file:
                     claim_received_col = None
                     
                     encounter_date_variations = ['ENCOUNTER DATE (DD/MM/YYYY)', 'ENCOUNTER_DATE_DD_MM_YYYY', 'ENCOUNTER_DATE', 'Encounter Date', 'Encounter_Date', 'ENC_DATE']
-                    claim_received_variations = ['DATE CLAIM RECEIVED ', 'DATE_CLAIM_RECEIVED', 'Date Claim Received', 'Date_Claim_Received', 'CLAIM_RECEIVED_DATE']
+                    claim_received_variations = ['DATE CLAIM RECEIVED ', 'DATE_CLAIM_RECEIVED', 'Date Claim Received', 'Date_Claim_Received', 'CLAIM_RECEIVED_DATE', 'DATE RECEIVED', 'DATE CLAIM RECEIVED']
                     
                     for col in encounter_date_variations:
                         if col in claims_df.columns:

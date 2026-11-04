@@ -17,6 +17,22 @@ load_dotenv('secrets.env')
 
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
 
+# Function to find column by multiple possible names (normalised comparison)
+def find_column_index(df, possible_names):
+    """Find the 1-based index of a column in df that matches any of possible_names,
+    using _norm for case/whitespace/underscore-insensitive comparison.
+    Returns None if no match found."""
+    norm_possible = {_norm(n) for n in possible_names}
+    for name in df.columns:
+        if _norm(name) in norm_possible:
+            return df.columns.get_loc(name) + 1  # +1 for Excel 1-based indexing
+    return None
+
+
+def _norm(s):
+    """Normalize a string for comparison: collapse whitespace/underscores/NBSP, strip, upper."""
+    return re.sub(r'[\s_\u00a0]+', ' ', str(s)).strip().upper()
+
 def is_valid_email(email):
     return bool(EMAIL_REGEX.match(email))
 
@@ -194,24 +210,42 @@ def generate_enhanced_claims_excel(claims_df, schedule_col, amount_col):
     column_mapping = {
         'PROVIDER_CODE': ['PROVIDER CODE', 'PROVIDER_CODE', 'Provider Code', 'Provider_Code', 'ProviderCode'],
         'ENCOUNTER_DATE_DD_MM_YYYY': ['ENCOUNTER DATE (DD/MM/YYYY)', 'ENCOUNTER_DATE_DD_MM_YYYY', 'ENCOUNTER_DATE', 'Encounter Date', 'Encounter_Date', 'ENC_DATE'],
-        'DATE_CLAIM_RECEIVED': ['DATE CLAIM RECEIVED ', 'DATE_CLAIM_RECEIVED', 'Date Claim Received', 'Date_Claim_Received', 'CLAIM_RECEIVED_DATE'],
+        'DATE_CLAIM_RECEIVED': ['DATE CLAIM RECEIVED ', 'DATE_CLAIM_RECEIVED', 'Date Claim Received', 'Date_Claim_Received', 'CLAIM_RECEIVED_DATE', 'DATE CLAIM RECEIVED', 'DATE RECEIVED', 'CLAIM RECEIVED DATE'],
         'ENROLLEE_NAME': ['ENROLLEE NAME', 'ENROLLEE_NAME', 'Enrollee Name', 'Enrollee_Name', 'EnrolleeName'],
         'MEMBER_NO': ['MEMBER NO', 'MEMBER_NO', 'Member No', 'Member_No', 'MemberNo', 'Member Number']
     }
 
-    # Function to find column by multiple possible names
-    def find_column_index(df, possible_names):
-        for name in possible_names:
-            if name in df.columns:
-                return df.columns.get_loc(name) + 1  # +1 for Excel 1-based indexing
-        return None
-
-    # Find the actual column indices
+    # Find the actual column indices (using module-level find_column_index)
     provider_code_idx = find_column_index(enhanced_df, column_mapping['PROVIDER_CODE'])
     encounter_date_idx = find_column_index(enhanced_df, column_mapping['ENCOUNTER_DATE_DD_MM_YYYY'])
     claim_received_idx = find_column_index(enhanced_df, column_mapping['DATE_CLAIM_RECEIVED'])
     enrollee_name_idx = find_column_index(enhanced_df, column_mapping['ENROLLEE_NAME'])
     member_no_idx = find_column_index(enhanced_df, column_mapping['MEMBER_NO'])
+
+    # Warn if any required column is not found
+    missing = []
+    if provider_code_idx is None:
+        missing.append('PROVIDER_CODE')
+    if encounter_date_idx is None:
+        missing.append('ENCOUNTER_DATE_DD_MM_YYYY')
+    if claim_received_idx is None:
+        missing.append('DATE_CLAIM_RECEIVED')
+    if enrollee_name_idx is None:
+        missing.append('ENROLLEE_NAME')
+    if member_no_idx is None:
+        missing.append('MEMBER_NO')
+    if missing:
+        looked_for = {
+            'PROVIDER_CODE': 'PROVIDER CODE / PROVIDER_CODE / Provider Code',
+            'ENCOUNTER_DATE_DD_MM_YYYY': 'ENCOUNTER DATE (DD/MM/YYYY) / ENCOUNTER_DATE_DD_MM_YYYY',
+            'DATE_CLAIM_RECEIVED': 'DATE CLAIM RECEIVED / DATE RECEIVED / CLAIM RECEIVED DATE',
+            'ENROLLEE_NAME': 'ENROLLEE NAME / ENROLLEE_NAME',
+            'MEMBER_NO': 'MEMBER NO / MEMBER_NO',
+        }
+        missing_cols = [looked_for.get(m, m) for m in missing]
+        st.warning(f"Required column(s) not found in Excel: {', '.join(missing_cols)}. "
+                   f"Formulas will be skipped for missing columns. "
+                   f"Looked for: {', '.join(missing_cols)}")
 
     print(f"🔍 DEBUG UTILS: Column indices found:")
     print(f"  provider_code_idx: {provider_code_idx}")
